@@ -28,6 +28,9 @@ class GPEnsemble(nn.Module):
             pretrained=True,
         ):
         super(GPEnsemble, self).__init__()
+        
+        # setup up-sampling models
+        self.up_samplers = []
 
         layers = []
         layers.append(torch.nn.Conv2d(in_channels, hidden_channels, kernel_size, padding='same'))
