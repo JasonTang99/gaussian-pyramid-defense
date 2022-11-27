@@ -13,6 +13,8 @@ import skimage.io
 import argparse
 from tqdm import tqdm
 
+from models import DnCNN
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def train(args):
