@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, models
 from torchvision.datasets import MNIST, CIFAR10
+from torchvision.transforms import InterpolationMode
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,31 +15,30 @@ import argparse
 from tqdm import tqdm
 
 from models.utils import create_resnet
+from models.gp_ensemble import GPEnsemble 
 
-def calc_target_size(in_size, direction, num, factor=2):
-    return in_size * factor**num if direction == "up" else in_size // factor**num
+def calc_target_size(in_size, scaling_exp, factor=2):
+    return int(in_size * (factor ** scaling_exp))
 
-def train_one_model(args, model_name, model, direction, num):
+def train_one_model(args, model_name, model, scaling_exp):
     """
     Train one model on resized dataset.
     """
-    
     # load data and split into train and validation sets
     if args.dataset == 'mnist':
-        target_size = calc_target_size(28, direction, num)
+        target_size = calc_target_size(28, scaling_exp)
         # duplicate to 3 channels
         transform = transforms.Compose([
-            transforms.Resize(target_size, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.Resize(target_size, interpolation=args.interpolation),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1))
         ])
         train_data = MNIST(root='data', train=True, download=True, transform=transform)
         train_data, val_data = torch.utils.data.random_split(train_data, [50000, 10000])
-
     elif args.dataset == 'cifar10':
-        target_size = calc_target_size(32, direction, num)
+        target_size = calc_target_size(32, scaling_exp)
         transform = transforms.Compose([
-            transforms.Resize(target_size, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.Resize(target_size, interpolation=args.interpolation),
             transforms.ToTensor(),
         ])
         train_data = CIFAR10(root='data', train=True, download=True, transform=transform)
@@ -50,29 +50,32 @@ def train_one_model(args, model_name, model, direction, num):
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False)
 
-    # load model
+    # setup model
     model = create_resnet(device=args.device, output_size=10, model=model)
-    print(model)
+    model.train()
     
+    # train model
     optim = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-
-    # train model
+    
     pbar = tqdm(total=len(train_data) * args.epochs // args.batch_size)
     for epoch in range(args.epochs):
-        model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
-            optim.zero_grad()
+            data, target = data.to(args.device), target.to(args.device)
             output = model(data)
+            
             loss = loss_fn(output, target)
             loss.backward()
+            
             optim.step()
+            optim.zero_grad()
+            
             pbar.update(1)
 
-        model.eval()
         correct = 0
         with torch.no_grad():
             for batch_idx, (data, target) in enumerate(val_loader):
+                data, target = data.to(args.device), target.to(args.device)
                 output = model(data)
                 pred = output.argmax(dim=1, keepdim=True)
                 correct += pred.eq(target.view_as(pred)).sum().item()
@@ -81,7 +84,7 @@ def train_one_model(args, model_name, model, direction, num):
     pbar.close()
 
     # save model
-    torch.save(model.state_dict(), os.path.join('trained_models', args.dataset, model_name + ".pth"))
+    torch.save(model.state_dict(), os.path.join('trained_models', args.dataset, model_name))
 
 
 def train(args):
@@ -98,6 +101,8 @@ def train(args):
         epochs (int): Number of epochs to train for.
         batch_size (int): Batch size.
         lr (float): Learning rate.
+        device (str): Device to train on. One of ['cpu', 'cuda:0'].
+        interpolation (str): Interpolation method to use. One of ['nearest', 'bilinear'].
     """
     # get/setup model path
     trained_model_path = os.path.join('trained_models', args.dataset)
@@ -107,72 +112,20 @@ def train(args):
     # generate model names and train untrained models
     model_names = []
     for i, model in enumerate(args.models):
-        if i < args.up_samplers:
-            model_names.append(f"up_{i+1}_{model}")
-            if not os.path.exists(os.path.join(trained_model_path, model_names[-1])):
-                train_one_model(args, model_name=model_names[-1], model=model, direction="up", num=i+1)
-        elif i == args.up_samplers:
-            model_names.append(f"base_{model}")
-            if not os.path.exists(os.path.join(trained_model_path, model_names[-1])):
-                train_one_model(args, model_name=model_names[-1], model=model, direction="up", num=0)
+        scaling_exp = i - args.down_samplers
+        model_name = f"{model}_{'+' if scaling_exp > 0 else ''}{scaling_exp}_{'BL' if args.interpolation else 'NN'}.pth"
+        model_names.append(model_name)
+
+        if os.path.exists(os.path.join(trained_model_path, model_name)):
+            print(f"Model {model_name} already exists. Skipping.")
         else:
-            model_names.append(f"down_{i-args.up_samplers}_{model}")
-            if not os.path.exists(os.path.join(trained_model_path, model_names[-1])):
-                train_one_model(args, model_name=model_names[-1], model=model, direction="down", num=i-args.up_samplers)
+            print(f"Training {model_name}.")
+            train_one_model(args, model_name, model, scaling_exp)
+        
+        
     
     print(model_names)
-    exit(0)
-    
 
-
-    # create model
-
-    losses = []
-    psnrs = []
-    baseline_psnrs = []
-    val_losses = []
-    val_psnrs = []
-    val_iters = []
-    idx = 0
-
-    pbar = tqdm(total=len(train_dataset) * epochs // batch_size)
-    for epoch in range(epochs):
-        for sample in train_dataloader:
-
-            model.train()
-            sample = sample.to(device)
-
-            # add noise
-            noisy_sample = add_noise(sample, sigma=sigma)
-
-            # denoise
-            denoised_sample = model(noisy_sample)
-
-            # loss function
-            loss = torch.mean((denoised_sample - sample)**2)
-            psnr = calc_psnr(denoised_sample, sample)
-            baseline_psnr = calc_psnr(noisy_sample, sample)
-
-            losses.append(loss.item())
-            psnrs.append(psnr)
-            baseline_psnrs.append(baseline_psnr)
-
-            # update model
-            loss.backward()
-            optim.step()
-            optim.zero_grad()
-
-            # plot results
-            if not idx % plot_every:
-                plot_summary(idx, model, sigma, losses, psnrs, baseline_psnrs,
-                             val_losses, val_psnrs, val_iters, train_dataset,
-                             val_dataset, val_dataloader)
-
-            idx += 1
-            pbar.update(1)
-
-    pbar.close()
-    return model
 
 if __name__ == '__main__':
     # seed for reproducibility
@@ -182,8 +135,8 @@ if __name__ == '__main__':
     # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
-    parser.add_argument('--up_samplers', type=int, default=2, help='Number of up-sampling ensemble models.')
-    parser.add_argument('--down_samplers', type=int, default=3, help='Number of down-sampling ensemble models.')
+    parser.add_argument('--up_samplers', type=int, default=1, help='Number of up-sampling ensemble models.')
+    parser.add_argument('--down_samplers', type=int, default=2, help='Number of down-sampling ensemble models.')
     parser.add_argument('--pretrained', type=bool, default=True, help='Whether to start from pretrained ensemble models.')
 
     # either specify individual models or the same model for all ensemble members
@@ -193,6 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train for.')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate.')
+    parser.add_argument('--interpolation', type=str, default='bilinear', help='Interpolation method for resizing. One of [bilinear, nearest].')
 
     args = parser.parse_args()
     
@@ -207,6 +161,13 @@ if __name__ == '__main__':
     
     if len(args.models) == 1:
         args.models = args.models * (1 + args.up_samplers + args.down_samplers)
+    
+    if args.interpolation == 'nearest':
+        args.interpolation = InterpolationMode.NEAREST
+    elif args.interpolation == 'bilinear':
+        args.interpolation = InterpolationMode.BILINEAR
+    else:
+        raise ValueError("Interpolation method not supported")
 
     # print args
     print("Arguments:")
@@ -214,6 +175,9 @@ if __name__ == '__main__':
 
     # train ensemble
     train(args)
+
+    # create ensemble
+    # ensemble = 
 
 
 

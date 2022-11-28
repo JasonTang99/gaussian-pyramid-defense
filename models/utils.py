@@ -24,4 +24,7 @@ def create_resnet(device="cpu", output_size=10, model="resnet18"):
     for param in model.fc.parameters():
         param.requires_grad = True
     
+    # move model to device
+    model = model.to(device)
+    
     return model
