@@ -18,21 +18,33 @@ class DnCNN(nn.Module):
     }
     """
 
-    def __init__(self, in_channels=3, out_channels=3, hidden_channels=32, kernel_size=3,
-                 hidden_layers=3, use_bias=True):
+    def __init__(self, in_channels=3, out_channels=3, depth=17, hidden_channels=64,
+                use_bias=True):
         super(DnCNN, self).__init__()
 
         self.use_bias = use_bias
 
         layers = []
-        layers.append(torch.nn.Conv2d(in_channels, hidden_channels, kernel_size, padding='same', bias=use_bias))
+        layers.append(torch.nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, bias=use_bias))
         layers.append(torch.nn.ReLU(inplace=True))
-        for i in range(hidden_layers):
-            layers.append(torch.nn.Conv2d(hidden_channels, hidden_channels, kernel_size, padding='same', bias=use_bias))
+        for _ in range(depth - 2):
+            layers.append(torch.nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, padding=1, bias=use_bias))
+            layers.append(torch.nn.BatchNorm2d(hidden_channels))
             layers.append(torch.nn.ReLU(inplace=True))
-        layers.append(torch.nn.Conv2d(hidden_channels, out_channels, kernel_size, padding='same', bias=use_bias))
+        layers.append(torch.nn.Conv2d(hidden_channels, out_channels, kernel_size=3, padding=1, bias=use_bias))
 
         self.net = nn.Sequential(*layers)
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        return x - self.net(x)
+        y = x
+        residual = self.net(x)
+        return y - residual
