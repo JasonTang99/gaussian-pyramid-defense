@@ -29,18 +29,18 @@ def train_one_model(args, model_name, model, scaling_exp):
         target_size = calc_target_size(28, scaling_exp)
         # duplicate to 3 channels
         transform = transforms.Compose([
-            transforms.Resize(target_size, interpolation=args.interpolation),
             transforms.ToTensor(),
+            transforms.Resize(target_size, interpolation=args.interpolation, antialias=True),
             transforms.Lambda(lambda x: x.repeat(3, 1, 1))
         ])
         train_data = MNIST(root='data', train=True, download=True, transform=transform)
         train_data, val_data = torch.utils.data.random_split(train_data, [50000, 10000])
     elif args.dataset == 'cifar10':
         target_size = calc_target_size(32, scaling_exp)
-        transform = transforms.Compose([
-            transforms.Resize(target_size, interpolation=args.interpolation),
-            transforms.ToTensor(),
-        ])
+        # transform = transforms.Compose([
+        #     transforms.Resize(target_size, interpolation=args.interpolation),
+        #     transforms.ToTensor(),
+        # ])
         train_data = CIFAR10(root='data', train=True, download=True, transform=transform)
         train_data, val_data = torch.utils.data.random_split(train_data, [40000, 10000])
     else:

@@ -7,11 +7,11 @@ def create_resnet(device="cpu", output_size=10, model="resnet18"):
     Create resnet model.
     """
     if model == "resnet18":
-        model = resnet18(weights=ResNet18_Weights)
+        model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
     elif model == "resnet34":
-        model = resnet34(weights=ResNet34_Weights)
+        model = resnet34(weights=ResNet34_Weights.IMAGENET1K_V1)
     elif model == "resnet50":
-        model = resnet50(weights=ResNet50_Weights)
+        model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
     else:
         raise ValueError("Model not supported.")
     
@@ -19,10 +19,10 @@ def create_resnet(device="cpu", output_size=10, model="resnet18"):
     model.fc = nn.Linear(model.fc.in_features, output_size)
 
     # freeze all non-fc layers
-    for param in model.parameters():
-        param.requires_grad = False
-    for param in model.fc.parameters():
-        param.requires_grad = True
+    # for param in model.parameters():
+    #     param.requires_grad = False
+    # for param in model.fc.parameters():
+    #     param.requires_grad = True
     
     # move model to device
     model = model.to(device)
