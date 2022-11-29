@@ -32,7 +32,7 @@ def add_noise(x, mode, noise_level):
     elif mode == 'fgsm':
         noisy = fast_gradient_method(net, x, eps=noise_level, norm=np.inf)
     elif mode == 'pgd':
-        noisy = projected_gradient_descent(net, x, eps=noise_level, eps_iter=0.01, nb_iter=10, norm=np.inf)
+        noisy = projected_gradient_descent(net, x, eps=noise_level, eps_iter=0.01, nb_iter=20, norm=np.inf)
     else: pass
 
     return noisy
@@ -44,44 +44,12 @@ def calc_psnr(x, gt):
     out = 10 * np.log10(1 / ((x - gt)**2).mean().item())
     return out
 
-def show_batch(train_loader, adv_mode, n=6):
-    # obtain one batch of training images
-    dataiter = iter(train_loader)
-    images, _ = next(dataiter)
-    images = images.to(device)
-    # convert images to numpy for display
-    noisy_imgs = add_noise(images, adv_mode, noise_level=0.1)
-
-    #noisy = np.clip(noisy, 0., 1.)
-    plt.figure(figsize=(20, 5))
-
-    for i in range(n):
-        # display original
-        ax = plt.subplot(2, n, i+1)
-        img = img_to_numpy(images[i])
-        plt.imshow(img)
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        
-        # display noisy
-        ax = plt.subplot(2, n, i +1 + n)
-        img = img_to_numpy(noisy_imgs[i])
-        plt.imshow(img)
-        #imshow(noisy[i])
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-    plt.figtext(0.5,0.95, "ORIGINAL IMAGES", ha="center", va="top", fontsize=14, color="r")
-    plt.figtext(0.5,0.5, "NOISY IMAGES", ha="center", va="top", fontsize=14, color="r")
-    plt.subplots_adjust(hspace = 0.3)    
-    plt.show()
-
-
-def show_batch_denoised(model, test_loader, mode, n=6):
+def show_batch(model, test_loader, mode, n=6):
     # obtain one batch of training images
     dataiter = iter(test_loader)
     images, _ = next(dataiter)
     images = images.to(device)
+    # add some noise
     noisy_imgs = add_noise(images, mode, noise_level=0.1)
     denoised = model(noisy_imgs)
 
@@ -115,29 +83,14 @@ def show_batch_denoised(model, test_loader, mode, n=6):
     plt.subplots_adjust(hspace = 0.5 )
     plt.show()
 
-def validate_model(model, val_loader, mode):
-    avg_psnr = 0
-    total = 0
-    for data in tqdm(val_loader):
-        images, _ = data
-        images = images.to(device)
-        noisy_imgs = add_noise(images, mode, noise_level=0.1)
-        output = model(noisy_imgs)
-        for i in range(len(images)):
-            original = img_to_numpy(images[i])
-            denoised = img_to_numpy(output[i])
-            avg_psnr += PSNR(original, denoised)
-        total += len(images)
 
-    print("\nAverage PSNR on validation set: {:.3f}".format(avg_psnr/total))
+def evaluate_model(model, data_loader, mode, noise_level, test=False):
+    if test: model.eval()
 
-def evaluate_model(model, test_loader, mode, noise_level):
-    model.eval()
     avg_psnr=0
     avg_ssim=0
-    test_size=0
-    #with torch.no_grad():
-    for data in tqdm(test_loader):
+    total=0
+    for data in tqdm(data_loader):
         images, _ = data
         images = images.to(device)
         noisy_imgs = add_noise(images, mode, noise_level)
@@ -145,19 +98,16 @@ def evaluate_model(model, test_loader, mode, noise_level):
         output = model(noisy_imgs)
         #output = output.view(len(images), 3, 32, 32)
         #output = output.detach().cpu()
-        batch_avg_psnr=0
-        batch_avg_ssim=0
         for i in range(len(images)):
             original = img_to_numpy(images[i])
             denoised = img_to_numpy(output[i])
-            batch_avg_psnr += PSNR(original, denoised)
-            batch_avg_ssim += SSIM(original, denoised, multichannel=True)
+            avg_psnr += PSNR(original, denoised)
+            avg_ssim += SSIM(original, denoised, multichannel=True)
 
-        avg_psnr += batch_avg_psnr
-        avg_ssim += batch_avg_ssim
-        test_size += len(images)
+        total += len(images)
 
-    print("On Test data of {} examples:\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(test_size,avg_psnr/test_size,avg_ssim/test_size))
+    print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr/total, avg_ssim/total))
+
 
 def train(args, model, model_name, train_loader, val_loader):
 
@@ -171,12 +121,12 @@ def train(args, model, model_name, train_loader, val_loader):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     #lambda1 = lambda x: 0.65 ** x
     #scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+    model.train()
 
     pbar = tqdm(total=len(train_data) * num_epochs // batch_size)
     for epoch in range(1, num_epochs + 1):
-        # monitor training loss
+
         train_loss = 0.0
-        
         for idx, (images, _) in enumerate(train_loader):
             images = images.to(device)
             
@@ -185,28 +135,28 @@ def train(args, model, model_name, train_loader, val_loader):
             noisy_imgs = add_noise(images, args.adv_mode, noise_level)
                     
             optimizer.zero_grad()
+            # denoiser
             denoised = model(noisy_imgs)
 
             loss = criterion(denoised, images)
-
             loss.backward()
             optimizer.step()
             # update running training loss
             train_loss += loss.item() * images.size(0)
 
-            if not idx % 100:
+            if not idx % 200:
                 psnr = calc_psnr(denoised, images)
                 baseline_psnr = calc_psnr(noisy_imgs, images)
-                print("\nTraining Loss: {:.4f} | BL PSNR: {:.2f} | PSNR: {:.2f}".format(train_loss/(idx + 1), baseline_psnr, psnr))
+                print("\nTraining Loss: {:.4f} | Baseline PSNR: {:.2f} | PSNR: {:.2f}".format(train_loss/(idx + 1), baseline_psnr, psnr))
 
             pbar.update(1)
         
         #scheduler.step()
         # print avg training statistics 
         train_loss = train_loss/len(train_loader)
-        print('\nEpoch: {} | Training Loss: {:.4f} | Learning Rate: {}'.format(epoch, train_loss, optimizer.param_groups[0]["lr"]))
-        # validation
-        validate_model(model, val_loader, args.adv_mode) 
+        print('\nEpoch: {} | Training Loss: {:.4f}'.format(epoch, train_loss))
+        # evaluate model on validation set
+        # evaluate_model(model, val_loader, args.adv_mode, noise_level=0.1) 
 
     pbar.close()
 
@@ -226,14 +176,9 @@ if __name__ == '__main__':
     # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
-    parser.add_argument('--pretrained', type=bool, default=True, help='Whether to start from pretrained ensemble models.')
-
-    # either specify individual models or the same model for all ensemble members
-    parser.add_argument('--models', type=str, nargs='+', default=['resnet18'], help='List of ensemble models. \
-        Must consist of models from [resnet18, resnet34, resnet50]. Must be of length 1 or 1 + up_samplers + down_samplers.')
-    
+    #parser.add_argument('--pretrained', type=bool, default=True, help='Whether to start from pretrained ensemble models.')
     parser.add_argument('--adv_mode', type=str, default='gaussian', help='type of adversarial noise')
-    parser.add_argument('--noise_level', type=float, nargs='+', default=[0.05, 0.2], help='range of sigma for gaussian')
+    parser.add_argument('--noise_level', type=float, nargs='+', default=[0.05, 0.2], help='noise level range, sigma for gaussian, eps for adversarial')
     parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train for.')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate.')
@@ -250,9 +195,6 @@ if __name__ == '__main__':
         train_data = MNIST(root='./data', train=True, download=True, transform=transform)
         test_data = MNIST(root='./data', train=False, download=True, transform=transform)
         train_data, val_data = torch.utils.data.random_split(train_data, [50000, 10000])
-        # Model
-        # model = DnCNN(in_channels=1, out_channels=1, depth=7, hidden_channels=64, use_bias=False).to(device)
-
     elif args.dataset == 'cifar10':
         transform = transforms.Compose([
             transforms.ToTensor()
@@ -260,7 +202,6 @@ if __name__ == '__main__':
         train_data = CIFAR10(root='./data', train=True, download=True, transform=transform)
         test_data = CIFAR10(root='./data', train=False, download=True, transform=transform)
         train_data, val_data = torch.utils.data.random_split(train_data, [45000, 5000])
-
     else:
         raise ValueError("Dataset not supported.")
 
@@ -268,25 +209,26 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False)
-    print("Number of images in train set: ", len(train_loader)*args.batch_size)
-    print("Number of images in val set: ", len(val_loader)*args.batch_size)
+    #print("Number of images in train set: ", len(train_loader)*args.batch_size)
+    #print("Number of images in val set: ", len(val_loader)*args.batch_size)
 
-    
-    # model
+    # denoiser model
     model = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(device)
     
-    # target net
+    # classification model
     net = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
     net.fc = torch.nn.Linear(net.fc.in_features, 10)
     net = net.to(device)
-    path = os.path.join("trained_models", args.dataset, 'resnet18_0_BL.pth')
-    net.load_state_dict(torch.load(path, map_location=device))
+    # load from pretrained
+    net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_0_BL.pth'), map_location=device))
 
-    noise_range = args.noise_level
-    model_name = f"dncnn_{args.dataset}_{args.adv_mode}_{noise_range[0]}_{noise_range[-1]}.pth"
+    # noise_range = args.noise_level
+    # if len(noise_range) < 2: # fixed noise level
+    #     model_name = f"dncnn_{args.dataset}_{args.adv_mode}_{noise_range[0]}.pth"
+    # else:
+    #     model_name = f"dncnn_{args.dataset}_{args.adv_mode}_{noise_range[0]}_{noise_range[-1]}.pth"
+    model_name = f"dncnn_{args.dataset}_{args.adv_mode}.pth"
     print(model_name)
-
-    show_batch(train_loader, args.adv_mode)
 
     if os.path.exists(os.path.join("trained_denoisers", model_name)):
         print("Model already exists. Skip Training.")
@@ -294,5 +236,6 @@ if __name__ == '__main__':
     else:
         train(args, model, model_name, train_loader, val_loader)
 
-    evaluate_model(model, test_loader, mode=args.adv_mode, noise_level=0.1)
-    #show_batch_denoised(model, test_loader, mode=args.adv_mode)
+    # display from a batch of images
+    show_batch(model, train_loader, args.adv_mode)
+    evaluate_model(model, test_loader, mode=args.adv_mode, noise_level=0.1, test=True)
