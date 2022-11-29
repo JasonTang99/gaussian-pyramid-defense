@@ -7,7 +7,7 @@ python train_ensemble.py \
     --down_samplers 3 \
     --archs resnet18 \
     --pretrained \
-    --epochs 15 \
+    --epochs 12 \
     --batch_size 64 \
-    --lr 1e-5 \
+    --lr 5e-5 \
     --scaling_factor 2

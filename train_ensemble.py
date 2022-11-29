@@ -7,10 +7,9 @@ from torchvision.transforms import InterpolationMode
 
 import numpy as np
 import os
-import pickle
 from tqdm import tqdm
 
-from models.utils import create_resnet, calc_resize_shape
+from utils import create_resnet, calc_resize_shape, read_results, write_results
 from models.gp_ensemble import GPEnsemble 
 from parse_args import parse_args
 
@@ -126,13 +125,18 @@ def train_ensemble(args):
     Train ensemble models on a dataset.
 
     """
+    val_accs = {}
     for i, model_path in enumerate(args.model_paths):
         # skip if model already exists
         if os.path.exists(model_path):
             print(f"Model {model_path} already exists. Skipping.")
         else:
             print(f"Training {model_path}.")
-            train_one_model(args, i)
+            val_acc = train_one_model(args, i)
+            val_accs[model_path] = val_acc
+    
+    # save validation accuracies
+    write_results(args.model_folder, val_accs)
 
 if __name__ == '__main__':
     # seed for reproducibility
@@ -142,7 +146,6 @@ if __name__ == '__main__':
     # parse args
     args = parse_args(mode='train')
     print(args.model_paths)
-    exit(0)
 
     # train ensemble
     train_ensemble(args)

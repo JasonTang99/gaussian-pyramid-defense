@@ -8,26 +8,31 @@ from torchvision import transforms, models
 from torchvision.datasets import MNIST, CIFAR10
 from torchvision.transforms import InterpolationMode
 
-from models.utils import create_resnet
+from utils import *
 
-# load pickle module
-import pickle
+# read val accuracy
+# val_accs = read_results('trained_models/mnist/')
+# weights = [a for a in val_accs.values()]
+# weights = [w / sum(weights) for w in weights]
 
-# define dictionary
-dict = {"hello/sdflasd/sdf.pth": 0.87, "hello/sdflasd/sdf2.pth": 0.81}
+weights = [0.4, 0.1]
+weights = torch.tensor([w / sum(weights) for w in weights])
 
-# create a binary pickle file 
-with open("file.pkl","wb") as f:
-    pickle.dump(dict, f)
+# create (2, 4) sample
+batch_size = 32
+num_classes = 10
+num_models = 2
+sample = torch.randn(num_models, batch_size, num_classes)
 
-# load pickle file
-with open("file.pkl","rb") as f:
-    dict2 = pickle.load(f)
+# weighted average along dim=1
+x = sample * weights[:, None, None]
+x = torch.sum(x, dim=0)
+print(sample[:, 0, :])
+print(x[0, :])
 
-print(dict2)
-dict2["hello/sdflasd/sdf.pth"] = 0.99
-print(dict2)
+# print(val_accs)
 
+exit(0)
 
 
 # t1 = transforms.Compose([

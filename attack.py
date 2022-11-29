@@ -10,7 +10,7 @@ from torchvision.transforms import InterpolationMode
 import os
 from tqdm import tqdm
 
-from models.utils import create_resnet, calc_resize_shape
+from utils import create_resnet, calc_resize_shape
 from models.gp_ensemble import GPEnsemble 
 from parse_args import parse_args
 
