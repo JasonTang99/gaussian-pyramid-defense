@@ -10,7 +10,47 @@ from torchvision.transforms import InterpolationMode
 
 from models.utils import create_resnet
 
-model = create_resnet(device="cuda", output_size=10, model="resnet18")
+# load pickle module
+import pickle
+
+# define dictionary
+dict = {"hello/sdflasd/sdf.pth": 0.87, "hello/sdflasd/sdf2.pth": 0.81}
+
+# create a binary pickle file 
+with open("file.pkl","wb") as f:
+    pickle.dump(dict, f)
+
+# load pickle file
+with open("file.pkl","rb") as f:
+    dict2 = pickle.load(f)
+
+print(dict2)
+dict2["hello/sdflasd/sdf.pth"] = 0.99
+print(dict2)
+
+
+
+# t1 = transforms.Compose([
+#     # transforms.ToTensor(),
+#     transforms.Resize(54, interpolation=InterpolationMode.NEAREST, antialias=True),
+#     transforms.Resize(28, interpolation=InterpolationMode.BICUBIC, antialias=True),
+# ])
+# t2 = transforms.Lambda(lambda x: x.repeat(1, 3, 1, 1))
+
+# # combine transforms
+# t = transforms.Compose([*t1.transforms, t2])
+# print(t)
+
+# # apply to sample data
+# x = torch.rand(42, 1, 28, 28)
+# x = t(x)
+# print(x.shape)
+
+exit(0)
+
+
+
+model = create_resnet(device="cuda", num_classes=10, arch="resnet18")
 model.load_state_dict(torch.load("trained_models/mnist/resnet18_-1_BL.pth"))
 model.eval()
 model = model.cuda()
@@ -27,6 +67,7 @@ train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
 t = transforms.Compose([
     transforms.Resize(14, interpolation=InterpolationMode.BILINEAR, antialias=True),
 ])
+
 
 correct = 0
 with torch.no_grad():
