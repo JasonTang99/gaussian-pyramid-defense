@@ -4,7 +4,7 @@
 python train_ensemble.py \
     --dataset mnist \
     --up_samplers 2 \
-    --down_samplers 3 \
+    --down_samplers 4 \
     --archs resnet18 \
     --pretrained \
     --epochs 12 \

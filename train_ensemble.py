@@ -9,9 +9,10 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from utils import create_resnet, calc_resize_shape, read_results, write_results
+from utils import create_resnet, read_results, write_results
 from models.gp_ensemble import GPEnsemble 
 from parse_args import parse_args
+from datasets import load_data
 
 def train_one_model(args, model_idx):
     """
@@ -41,40 +42,9 @@ def train_one_model(args, model_idx):
         
         model_idx (int): Index of model to train.
     """
-    # setup transform
-    target_size = calc_resize_shape(
-        in_size=args.input_size,
-        scaling_exp=model_idx - args.down_samplers,
-        scaling_factor=args.scaling_factor
-    )
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Resize(
-            target_size, 
-            interpolation=args.interpolation, 
-            antialias=True
-        ),
-    ])
-
     # load dataset
-    if args.dataset == 'mnist':
-        # duplicate to 3 channels
-        transform = transforms.Compose([
-            *transform.transforms,
-            transforms.Lambda(lambda x: x.repeat(3, 1, 1))
-        ])
-        dataset = MNIST(root='data', train=True, download=True, transform=transform)
-    elif args.dataset == 'cifar10':
-        dataset = CIFAR10(root='data', train=True, download=True, transform=transform)
-    else:
-        raise ValueError("Dataset not supported.")
-    
-    # 80/20 train/validation split
-    train_data, val_data = torch.utils.data.random_split(dataset, [0.8, 0.2])
-    
-    # create dataloaders
-    train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False)
+    train_loader, val_loader = load_data(args, 
+        model_idx - args.down_samplers, train=True)
 
     # setup model
     model = create_resnet(
@@ -89,7 +59,7 @@ def train_one_model(args, model_idx):
     optim = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
     
-    pbar = tqdm(total=len(train_data) * args.epochs // args.batch_size)
+    pbar = tqdm(total=len(train_loader.dataset) * args.epochs // args.batch_size)
     for epoch in range(args.epochs):
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(args.device), target.to(args.device)
@@ -111,7 +81,7 @@ def train_one_model(args, model_idx):
                 output = model(data)
                 pred = output.argmax(dim=1, keepdim=True)
                 correct += pred.eq(target.view_as(pred)).sum().item()
-        val_acc = correct / len(val_data)
+        val_acc = correct / len(val_loader.dataset)
         print(f"Epoch: {epoch}, Accuracy: {val_acc}")
     pbar.close()
 
