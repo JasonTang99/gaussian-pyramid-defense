@@ -21,7 +21,7 @@ def parse_args(mode="train", verbose=True):
     parser.add_argument('--scaling_factor', type=float, default=2.0, help='Scaling factor for up/down sampling.')
     parser.add_argument('--archs', type=str, nargs='+', default=['resnet18'], help='List of ensemble model architectures. \
         Must have architectures from [resnet18, resnet34, resnet50]. Must be length 1 or 1 + up_samplers + down_samplers.')
-    parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size.')
         
     if mode == "attack":
         parser.add_argument('--voting_method', type=str, default='simple_avg', help='Voting method to use. \
@@ -33,12 +33,12 @@ def parse_args(mode="train", verbose=True):
         parser.add_argument('--norm', type=str, default='2', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
 
         # pgd attack parameters
-        parser.add_argument('--num_steps', type=int, default=40, help='Number of steps for PGD attack.')
-        parser.add_argument('--step_size', type=float, default=0.01, help='Step size for PGD attack.')
+        parser.add_argument('--nb_iter', type=int, default=40, help='Number of steps for PGD attack. Usually 40 or 100.')
+        parser.add_argument('--eps_iter', type=float, default=0.01, help='Step size for PGD attack.')
+        parser.add_argument('--rand_init', type=bool, default=False, help='Whether to use random initialization for PGD attack.')
         
         # cw attack parameters
         parser.add_argument('--confidence', type=float, default=0, help='Confidence for CW attack.')
-        parser.add_argument('--targeted', action='store_true', help='Whether to use targeted CW attack.')
 
     # training related args
     if mode == "train":

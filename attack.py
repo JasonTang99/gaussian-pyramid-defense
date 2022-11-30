@@ -16,9 +16,11 @@ from parse_args import parse_args
 from datasets import load_data
 
 from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
-from cleverhans.torch.attacks.projected_gradient_descent import (
+from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,
 )
+from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
+
 
 def evaluate_baseline(args, model):
     """
@@ -41,9 +43,9 @@ def evaluate_baseline(args, model):
     return test_acc
 
 
-def evaluate_FGSM(args, model):
+def evaluate_attack(args, model):
     """
-    Evaluate model on FGSM attacked data.
+    Evaluate model on attacked data.
     """
     # load dataset
     test_loader = load_data(args, 0, train=False)
@@ -53,43 +55,65 @@ def evaluate_FGSM(args, model):
     correct = 0
     for images, labels in tqdm(test_loader):
         images, labels = images.to(args.device), labels.to(args.device)
-        images = fast_gradient_method(
-            model_fn=model,
-            x=images,
-            eps=args.epsilon,
-            norm=args.norm,
-            clip_min=0.0,
-            clip_max=1.0,
-        )
+
+        if args.attack_method == 'baseline':
+            pass
+        elif args.attack_method == 'fgsm':
+            images = fast_gradient_method(
+                model_fn=model,
+                x=images,
+                eps=args.epsilon,
+                norm=args.norm,
+                clip_min=0.0,
+                clip_max=1.0,
+            )
+        elif args.attack_method == 'pgd':
+            images = projected_gradient_descent(
+                model_fn=model,
+                x=images,
+                eps=args.epsilon,
+                eps_iter=args.eps_iter,
+                nb_iter=args.nb_iter,
+                norm=args.norm,
+                clip_min=0.0,
+                clip_max=1.0,
+                rand_init=args.rand_init,
+                sanity_checks=False
+            )
+        elif args.attack_method == 'cw':
+            images = carlini_wagner_l2(
+                model_fn=model,
+                x=images,
+                n_classes=args.num_classes,
+            )
+
+        
         outputs = model(images)
         _, preds = torch.max(outputs, 1)
-        correct += torch.sum(preds == labels.data)
+        correct += torch.sum(preds == labels.data).detach().cpu()
+
     test_acc = correct.double() / len(test_loader.dataset)
-    print(f'Test Accuracy with FGSM Attack: {test_acc}')
+    print(f'Test Accuracy on {args.attack_method}: {test_acc}')
 
     return test_acc
 
 def run_one_attack(args):
+    # set random seeds
+    torch.manual_seed(0)
+
     # setup ensemble model
     model = GPEnsemble(args)
-    model.eval()
 
     # run attack
-    if args.attack_method == "baseline":
-        test_acc = evaluate_baseline(args, model)
-    elif args.attack_method == "fgsm":
-        test_acc = evaluate_FGSM(args, model)
-    
+    test_acc = evaluate_attack(args, model)
 
     return test_acc
 
 
 if __name__ == "__main__":
-    # set random seeds
-    torch.manual_seed(0)
-
     # parse args
     args = parse_args(mode="attack")
+    args.attack_method = "cw"
 
     # run attack
     run_one_attack(args)

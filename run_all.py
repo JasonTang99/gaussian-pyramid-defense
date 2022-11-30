@@ -88,7 +88,7 @@ def run(
 
 
 if __name__ == "__main__":
-    # run attack
+    # run FGSM attack (L1, L2, Linf)
     epsilons = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
     up_down_pairs = [
         *[(0, i) for i in range(0, 4)],
@@ -118,3 +118,7 @@ if __name__ == "__main__":
     # Save results
     with open('attack_results.pkl', 'wb') as f:
         pickle.dump(attack_results, f)
+
+    # run PGD attack (L2, Linf)
+    eps_iters = [0.005, 0.01]
+    

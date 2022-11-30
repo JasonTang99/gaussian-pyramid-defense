@@ -7,4 +7,7 @@ We use the library [cleverhans 4.0.0](https://github.com/cleverhans-lab/cleverha
 TODO List / Ideas:
 - Compare how much the scaling factor matters compared to number of ensemble elements
 - Do small scaling factors (e.g. 1.1) work as well as larger ones?
-- 
+    - Would be more efficient and easier to train ensemble models from the base one
+- Be more precise in norm specification and problem statement
+
+

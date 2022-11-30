@@ -2,9 +2,43 @@
 import numpy as np
 import torch
 
-from cleverhans.fast_gradient_method import fast_gradient_method
-from cleverhans.utils import clip_eta
+from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 
+# Fix for memory leak from: https://github.com/cleverhans-lab/cleverhans/issues/1230
+def clip_eta(eta, norm, eps):
+    """
+    PyTorch implementation of the clip_eta in utils_tf.
+
+    :param eta: Tensor
+    :param norm: np.inf, 1, or 2
+    :param eps: float
+    """
+    if norm not in [np.inf, 1, 2]:
+        raise ValueError("norm must be np.inf, 1, or 2.")
+
+    avoid_zero_div = torch.tensor(1e-12, dtype=eta.dtype, device=eta.device)
+    reduc_ind = list(range(1, len(eta.size())))
+    if norm == np.inf:
+        eta = torch.clamp(eta, -eps, eps)
+    else:
+        if norm == 1:
+            raise NotImplementedError("L1 clip is not implemented.")
+            norm = torch.max(
+                avoid_zero_div, torch.sum(torch.abs(eta), dim=reduc_ind, keepdim=True)
+            )
+        elif norm == 2:
+            norm = torch.sqrt(
+                torch.max(
+                    avoid_zero_div, torch.sum(eta ** 2, dim=reduc_ind, keepdim=True)
+                )
+            )
+        factor = torch.min(
+            torch.tensor(1.0, dtype=eta.dtype, device=eta.device), eps / norm
+        )
+       # eta *= factor # this line used in-place operation and causes memory leaking. When i call this function in a for loop, the allocated memory keeps increasing and result in Out-of-Memory ,you would better change it as the line below
+        return eta * factor
+        
+    return eta
 
 def projected_gradient_descent(
     model_fn,
