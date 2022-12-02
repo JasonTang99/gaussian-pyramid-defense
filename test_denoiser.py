@@ -105,7 +105,7 @@ def test_acc(model, denoiser, test_loader, eps, norm, attack):
         accuracy2 += (pred_adv == labels).sum().item()
         accuracy3 += (pred_dn == labels).sum().item()
     
-    #show_batch(images, x_adv, denoised, n=10)
+    show_batch(images, x_adv, denoised, n=10)
 
     # compute the accuracy over all test images
     accuracy1 = (accuracy1 / total)

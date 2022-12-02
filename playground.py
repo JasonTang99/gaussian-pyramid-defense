@@ -8,65 +8,58 @@ from torchvision import transforms, models
 from torchvision.datasets import MNIST, CIFAR10
 from torchvision.transforms import InterpolationMode
 
+import numpy as np
 from utils import *
+import random
+from models.gp_ensemble import GPEnsemble
+from models.resnet import MyResNet18
+from parse_args import *
 
-# read val accuracy
-# val_accs = read_results('trained_models/mnist/')
-# weights = [a for a in val_accs.values()]
-# weights = [w / sum(weights) for w in weights]
+# fp = "cw_results"
 
-weights = [0.4, 0.1]
-weights = torch.tensor([w / sum(weights) for w in weights])
+# # Load GPEnsemble
+# args = process_args("attack")
+# args.up_samplers = 2
+# args.down_samplers = 2
+# args = post_process_args(args, "attack")
+# model = GPEnsemble(args)
 
-# create (2, 4) sample
-batch_size = 32
-num_classes = 10
-num_models = 2
-sample = torch.randn(num_models, batch_size, num_classes)
+# print(len(model.models))
 
-# weighted average along dim=1
-x = sample * weights[:, None, None]
-x = torch.sum(x, dim=0)
-print(sample[:, 0, :])
-print(x[0, :])
-
-# print(val_accs)
-
-exit(0)
+# # sample input
+# x = torch.randn(12, 3, 32, 32).cuda()
+# y = model(x)
+# print(y)
+# print(y.shape)
 
 
-# t1 = transforms.Compose([
-#     # transforms.ToTensor(),
-#     transforms.Resize(54, interpolation=InterpolationMode.NEAREST, antialias=True),
-#     transforms.Resize(28, interpolation=InterpolationMode.BICUBIC, antialias=True),
+# exit(0)
+
+
+model = create_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
+
+# print(model)
+
+# Load weights
+# model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
+model.load_state_dict(torch.load("trained_models/cifar10/resnet18_2.0-1_BL.pth"))
+
+# to cuda
+model.cuda()
+
+# MNIST
+# transform = transforms.Compose([
+#     transforms.ToTensor(),
+#     transforms.Lambda(lambda x: x.repeat(3, 1, 1))
 # ])
-# t2 = transforms.Lambda(lambda x: x.repeat(1, 3, 1, 1))
-
-# # combine transforms
-# t = transforms.Compose([*t1.transforms, t2])
-# print(t)
-
-# # apply to sample data
-# x = torch.rand(42, 1, 28, 28)
-# x = t(x)
-# print(x.shape)
-
-exit(0)
-
-
-
-model = create_resnet(device="cuda", num_classes=10, arch="resnet18")
-model.load_state_dict(torch.load("trained_models/mnist/resnet18_-1_BL.pth"))
-model.eval()
-model = model.cuda()
-
+# train_data = MNIST(root='data', train=False, download=True, transform=transform)
+# CIFAR10
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Lambda(lambda x: x.repeat(3, 1, 1))
 ])
-train_data = MNIST(root='data', train=False, download=True, transform=transform)
+train_data = CIFAR10(root='data', train=False, download=True, transform=transform)
 
-train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
+train_loader = DataLoader(train_data, batch_size=64, shuffle=False)
 
 # evaluate model
 t = transforms.Compose([
@@ -86,6 +79,58 @@ with torch.no_grad():
 
 print("Accuracy: {}".format(correct / len(train_data)))
 exit(0)
+
+
+
+# # Load results
+# results = read_results(fp)
+# for w in [1e-4, 1e-5, 1e-6, 1e-8, 1e-10]:
+#     for x in [0.5]:
+#         for y in [1, 2, 4]:
+#             for z in [300]:
+#                 k = (w, x, y, z)
+#                 correct, l2, linf = results[k]
+#                 # to cpu
+#                 correct = correct.cpu().item()
+#                 l2 = l2.cpu().item()
+#                 linf = linf.cpu().item()
+
+#                 print(k, correct, l2, linf)
+# # print(results)
+
+
+# exit(0)
+
+
+# read val accuracy
+# dataset = 'cifar10'
+# val_accs = read_results(f'trained_models/{dataset}/results')
+# weights = [a for a in val_accs.values()]
+# weights = [w / sum(weights) for w in weights]
+
+# print(len(val_accs))
+# for k in val_accs.keys():
+#     if not os.path.exists(k):
+#         print("Missing", k)
+
+# for fp in os.listdir(f'trained_models/{dataset}/'):
+#     if fp.endswith('.pth'):
+#         if f'trained_models/{dataset}/' + fp not in val_accs.keys():
+#             print("Missing 2", fp)
+# exit(0)
+
+
+# Loading and using model
+model = create_resnet(device="cuda", num_classes=10, arch="resnet18")
+model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
+model.eval()
+model = model.cuda()
+
+
+
+exit(0)
+
+
 
 # train_data = MNIST(root='data', train=True, download=True)
 

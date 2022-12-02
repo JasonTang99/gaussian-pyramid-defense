@@ -31,6 +31,7 @@ class GPEnsemble(nn.Module):
         self.up_samplers = args.up_samplers
         self.down_samplers = args.down_samplers
         self.interpolation = args.interpolation
+        self.antialias = args.antialias
         self.scaling_factor = args.scaling_factor
         self.voting_method = args.voting_method
 
@@ -62,37 +63,44 @@ class GPEnsemble(nn.Module):
                         scaling_factor=self.scaling_factor
                     ),
                     interpolation=self.interpolation,
-                    antialias=True
+                    antialias=self.antialias
                 ),
             ])
             self.transforms.append(transform)
         
         # Calculate model weights from validation accuracies
         if "weighted" in self.voting_method:
-            val_acc_map = read_results(self.model_folder)
+            val_acc_map = read_results(os.path.join(self.model_folder, "results"))
             val_accs = torch.tensor(
-                [val_acc_map[model_path] for model_path in self.model_paths]
+                [val_acc_map[model_path] for model_path in self.model_paths],
+                device=self.device
             )
             self.model_weights = val_accs / val_accs.sum()
 
     def forward(self, x):
         # apply transformations and forward pass through models
-        outputs = [
+        # (num_models, batch_size, num_classes)
+        outputs = torch.stack([
             model(t(x)) for model, t in zip(self.models, self.transforms)
-        ]
-        
+        ])
+
         # average outputs
         if self.voting_method == "simple_avg":
-            output = torch.mean(torch.stack(outputs), dim=0)
+            output = torch.mean(outputs, dim=0)
         elif self.voting_method == "weighted_avg":
             output = torch.sum(
-                torch.stack(outputs) * self.model_weights.view(-1, 1, 1),
+                outputs * self.model_weights.view(-1, 1, 1),
                 dim=0
             )
 
             # TODO: check this
             
-        # elif self.voting_method == "majority_vote":
+        elif self.voting_method == "majority_vote":
+            # Get class with most votes
+            output = torch.argmax(
+                torch.sum(outputs, dim=0),
+                dim=1
+            )
         #     output = torch.mean(torch.stack(outputs), dim=0)
 
 
