@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 import math
 
 class DnCNN(nn.Module):
@@ -61,18 +61,18 @@ class REDNet10(nn.Module):
 
         # encoding layers
         conv_layers.append(nn.Sequential(nn.Conv2d(in_channels, num_features, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                                         nn.ReLU(inplace=True),
-                                         nn.BatchNorm2d(num_features)))
+                                         nn.ReLU(inplace=True), ))
+                                         # nn.BatchNorm2d(num_features)))
         for i in range(num_layers - 1):
             conv_layers.append(nn.Sequential(nn.Conv2d(num_features, num_features, kernel_size=3, padding=1, bias=use_bias),
-                                             nn.ReLU(inplace=True),
-                                             nn.BatchNorm2d(num_features)))
+                                             nn.ReLU(inplace=True), ))
+                                             # nn.BatchNorm2d(num_features)))
 
         # decoding layers
         for i in range(num_layers - 1):
             deconv_layers.append(nn.Sequential(nn.ConvTranspose2d(num_features, num_features, kernel_size=3, padding=1, bias=use_bias),
-                                               nn.ReLU(inplace=True),
-                                               nn.BatchNorm2d(num_features)))
+                                               nn.ReLU(inplace=True), ))
+                                               #nn.BatchNorm2d(num_features)))
 
         deconv_layers.append(nn.ConvTranspose2d(num_features, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias))
 
@@ -98,17 +98,21 @@ class REDNet20(nn.Module):
         deconv_layers = []
 
         conv_layers.append(nn.Sequential(nn.Conv2d(in_channels, num_features, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                                         nn.ReLU(inplace=True),
-                                         nn.BatchNorm2d(num_features)))
+                                        nn.ReLU(inplace=True), 
+                                        #))
+                                        nn.BatchNorm2d(num_features)))
+
         for i in range(num_layers - 1):
             conv_layers.append(nn.Sequential(nn.Conv2d(num_features, num_features, kernel_size=3, padding=1, bias=use_bias),
-                                             nn.ReLU(inplace=True),
-                                             nn.BatchNorm2d(num_features)))
+                                            nn.ReLU(inplace=True), 
+                                            #))
+                                            nn.BatchNorm2d(num_features)))
 
         for i in range(num_layers - 1):
             deconv_layers.append(nn.Sequential(nn.ConvTranspose2d(num_features, num_features, kernel_size=3, padding=1, bias=use_bias),
-                                               nn.ReLU(inplace=True),
-                                               nn.BatchNorm2d(num_features)))
+                                                nn.ReLU(inplace=True), 
+                                                #))
+                                                nn.BatchNorm2d(num_features)))
 
         deconv_layers.append(nn.ConvTranspose2d(num_features, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias))
 
@@ -141,77 +145,30 @@ class REDNet20(nn.Module):
 
 
 # some reference
-class DAE1(nn.Module):
-    def __init__(self):
-        super(DAE1, self).__init__()
+class DAE(nn.Module):
+    def __init__(self, num_features=64):
+        super(DAE, self).__init__()
         ## encoder layers ##
-        # conv layer (depth from 1 --> 32), 3x3 kernels
-        self.conv1 = nn.Conv2d(1, 32, 3, padding=1)  
-        # conv layer (depth from 32 --> 16), 3x3 kernels
-        self.conv2 = nn.Conv2d(32, 16, 3, padding=1)
-        # conv layer (depth from 16 --> 8), 3x3 kernels
-        self.conv3 = nn.Conv2d(16, 8, 3, padding=1)
-        # pooling layer to reduce x-y dims by two; kernel and stride of 2
-        self.pool = nn.MaxPool2d(2, 2)
-        
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+
         ## decoder layers ##
-        # transpose layer, a kernel of 2 and a stride of 2 will increase the spatial dims by 2
-        self.t_conv1 = nn.ConvTranspose2d(8, 8, 3, stride=2)  # kernel_size=3 to get to a 7x7 image output
-        # two more transpose layers with a kernel of 2
-        self.t_conv2 = nn.ConvTranspose2d(8, 16, 2, stride=2)
-        self.t_conv3 = nn.ConvTranspose2d(16, 32, 2, stride=2)
-        # one, final, normal conv layer to decrease the depth
-        self.conv_out = nn.Conv2d(32, 1, 3, padding=1)
+        self.t_conv1 = nn.ConvTranspose2d(32, 32, kernel_size=2, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(32, 64, kernel_size=2, stride=2)
+        self.conv_out = nn.Conv2d(64, 3, kernel_size=3, padding=1)
 
     def forward(self, x):
         ## encode ##
-        # add hidden layers with relu activation function
-        # and maxpooling after
         x = F.relu(self.conv1(x))
         x = self.pool(x)
-        # add second hidden layer
         x = F.relu(self.conv2(x))
         x = self.pool(x)
-        # add third hidden layer
-        x = F.relu(self.conv3(x))
-        x = self.pool(x)  # compressed representation
         
         ## decode ##
         # add transpose conv layers, with relu activation function
         x = F.relu(self.t_conv1(x))
         x = F.relu(self.t_conv2(x))
-        x = F.relu(self.t_conv3(x))
-        # transpose again, output should have a sigmoid applied
-        x = F.sigmoid(self.conv_out(x))
+        x = torch.sigmoid(self.conv_out(x))
                 
-        return x
-
-class DAE2(nn.Module):
-    def __init__(self):
-        super(DAE2, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size = (3,3), padding = "same"),
-            nn.ReLU(),
-            nn.MaxPool2d((2,2), padding = 0),
-            nn.Conv2d(32, 64, kernel_size = (3,3), padding = "same"),
-            nn.ReLU(),
-            nn.MaxPool2d((2,2), padding = 0),
-            nn.Conv2d(64, 128, kernel_size = (3,3), padding = "same"),
-            nn.ReLU(),
-            nn.MaxPool2d((2,2), padding = 0)
-        )
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 128, kernel_size = (3,3), stride = 2, padding = 0),
-            nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size = (3,3), stride = 2, padding = 0),
-            nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, kernel_size = (3,3), stride = 2, padding = 0),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 3, kernel_size = (3,3), stride = 1, padding = 1),
-            nn.Sigmoid()
-        )
-        
-    def forward(self, images):
-        x = self.encoder(images)
-        x = self.decoder(x)
         return x

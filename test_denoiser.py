@@ -13,7 +13,6 @@ from cleverhans_fixed.projected_gradient_descent import (
 )
 from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 from train_denoiser import img_to_numpy
-from custom_dataset import get_dataloader
 from utils import create_resnet
 
 # use GPU if available
@@ -87,6 +86,7 @@ def test_acc(model, denoiser, test_loader, eps, norm, attack):
                 n_classes=10,
                 max_iterations=10
             )
+        else: pass
 
         # baseline
         outputs = model(images)
@@ -105,17 +105,17 @@ def test_acc(model, denoiser, test_loader, eps, norm, attack):
         accuracy2 += (pred_adv == labels).sum().item()
         accuracy3 += (pred_dn == labels).sum().item()
     
-    show_batch(images, x_adv, denoised)
+    #show_batch(images, x_adv, denoised, n=10)
 
     # compute the accuracy over all test images
-    accuracy1 = (100 * accuracy1 / total)
-    accuracy2 = (100 * accuracy2 / total)
-    accuracy3 = (100 * accuracy3 / total)
+    accuracy1 = (accuracy1 / total)
+    accuracy2 = (accuracy2 / total)
+    accuracy3 = (accuracy3 / total)
     print("Test Accuracy no attack: {}".format(accuracy1))
     print("Test Accuracy with {} attack: {}".format(attack, accuracy2))
-    print("Test Accuracy with {} attack + {} denoiser: {}".format(attack, args.denoiser, accuracy3))
+    print("Test Accuracy with {} attack + denoiser: {}".format(attack, accuracy3))
 
-    return (accuracy1, accuracy2, accuracy3)
+    return accuracy1, accuracy2, accuracy3
 
 
 if __name__ == '__main__':
@@ -136,7 +136,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # load data
-    train_loader, test_loader = get_dataloader(args, val=False)
+    #if adv_mode = "cw"
+    _, test_loader = get_dataloader(args.dataset, args.batch_size, val=False)
 
     # denoiser model
     if args.arch == 'dncnn':
@@ -147,7 +148,6 @@ if __name__ == '__main__':
     # load pretrained denoiser
     denoiser_name = f"{args.arch}_{args.dataset}_{args.denoiser}.pth"
     denoiser_path = './trained_denoisers/' + denoiser_name
-    print(denoiser_name)
     denoiser.load_state_dict(torch.load(denoiser_path, map_location=device))
 
     #load classification model
@@ -155,7 +155,6 @@ if __name__ == '__main__':
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
 
-    epsilons = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0]
     if args.norm == 'inf':
         args.norm = np.inf
     elif args.norm == '1' or args.norm == '2':
@@ -171,4 +170,3 @@ if __name__ == '__main__':
     print(f"norm: {args.norm}")
     print("=======================================================")
     test_acc(net, denoiser, test_loader, eps=args.eps, norm=args.norm, attack=args.adv_mode)
-
