@@ -59,8 +59,7 @@ def train_one_model(args, model_idx):
     optim = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
     
-    pbar = tqdm(total=len(train_loader.dataset) * args.epochs // args.batch_size)
-    for epoch in range(args.epochs):
+    for epoch in tqdm(range(args.epochs)):
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(args.device), target.to(args.device)
             output = model(data)
@@ -70,8 +69,6 @@ def train_one_model(args, model_idx):
             
             optim.step()
             optim.zero_grad()
-            
-            pbar.update(1)
 
         # evaluate model
         correct = 0
@@ -83,7 +80,6 @@ def train_one_model(args, model_idx):
                 correct += pred.eq(target.view_as(pred)).sum().item()
         val_acc = correct / len(val_loader.dataset)
         print(f"Epoch: {epoch}, Accuracy: {val_acc}")
-    pbar.close()
 
     # save model
     torch.save(model.state_dict(), args.model_paths[model_idx])
@@ -95,7 +91,14 @@ def train_ensemble(args):
     Train ensemble models on a dataset.
 
     """
+    # read previous results
     val_accs = {}
+    results_fp = os.path.join(args.model_folder, "results")
+    if os.path.exists(results_fp):
+        val_accs = read_results(results_fp)
+    print(f"Loaded {len(val_accs)} results.")
+    
+    # train models
     for i, model_path in enumerate(args.model_paths):
         # skip if model already exists
         if os.path.exists(model_path):
@@ -104,9 +107,9 @@ def train_ensemble(args):
             print(f"Training {model_path}.")
             val_acc = train_one_model(args, i)
             val_accs[model_path] = val_acc
+            write_results(results_fp, val_accs, overwrite=True)
     
-    # save validation accuracies
-    write_results(args.model_folder, val_accs)
+    return val_accs
 
 if __name__ == '__main__':
     # seed for reproducibility
@@ -115,9 +118,9 @@ if __name__ == '__main__':
 
     # parse args
     args = parse_args(mode='train')
-    print(args.model_paths)
 
     # train ensemble
     train_ensemble(args)
     print("Finished training ensemble.")
 
+    # exit(0)

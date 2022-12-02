@@ -20,7 +20,7 @@ def load_data(args, scaling_exp=0, train=True):
             transforms.Resize(
                 target_size, 
                 interpolation=args.interpolation, 
-                antialias=True
+                antialias=args.antialias
             ),
         ])
     else:
@@ -46,8 +46,8 @@ def load_data(args, scaling_exp=0, train=True):
         train_data, val_data = torch.utils.data.random_split(dataset, [0.8, 0.2])
         
         # create dataloaders
-        train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-        val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False)
+        train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, drop_last=True)
+        val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, drop_last=True)
 
         return train_loader, val_loader
     else:

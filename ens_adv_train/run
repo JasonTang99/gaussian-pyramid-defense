@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python main_ens_adv_train.py --eps 2 --attacker 'fgsm' --loss_schema 'averaged' --dataset 'cifar10'

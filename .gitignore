@@ -1,6 +1,8 @@
 # Ignore Downloaded Pytorch Data Files
 data/
-
+trained_models/mnist/*.pth
+trained_models/cifar10/*.pth
+ens_adv_train/checkpoints
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
