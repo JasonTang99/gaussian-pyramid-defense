@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision import transforms, models
 import os
 
@@ -42,11 +43,14 @@ class GPEnsemble(nn.Module):
         self.archs = args.archs
         self.model_paths = args.model_paths
         self.model_folder = args.model_folder
+
+        self.grayscale = args.dataset == "mnist"
         
         # Initialize models
         self.models = []
         for arch, model_path in zip(self.archs, self.model_paths):
-            model = create_resnet(arch, self.num_classes, self.device)
+            model = create_resnet(arch, self.num_classes, self.device, 
+                grayscale=self.grayscale)
             model.load_state_dict(torch.load(
                 model_path, map_location=self.device))
             model.eval()
@@ -92,18 +96,31 @@ class GPEnsemble(nn.Module):
                 outputs * self.model_weights.view(-1, 1, 1),
                 dim=0
             )
-
-            # TODO: check this
-            
         elif self.voting_method == "majority_vote":
-            # Get class with most votes
-            output = torch.argmax(
-                torch.sum(outputs, dim=0),
-                dim=1
+            # Get votes (num_models, batch_size)
+            outputs = torch.argmax(outputs, dim=2)
+
+            # Select mode and one-hot encode (batch_size, num_classes)
+            output = F.one_hot(
+                torch.mode(outputs, dim=0).values,
+                num_classes=self.num_classes
             )
-        #     output = torch.mean(torch.stack(outputs), dim=0)
+        elif self.voting_method == "weighted_vote":
+            # Get votes (num_models, batch_size)
+            outputs = torch.argmax(outputs, dim=2)
 
+            # One-hot encode (num_models, batch_size, num_classes)
+            outputs = F.one_hot(outputs, num_classes=self.num_classes)
 
-        
+            # Weighted sum (batch_size, num_classes)
+            output = torch.sum(
+                outputs * self.model_weights.view(-1, 1, 1),
+                dim=0
+            )
+            # Set highest probability to 1 and rest to 0
+            output = torch.where(
+                output == torch.max(output, dim=1, keepdim=True).values,
+                1.0, 0.0
+            )
 
         return output

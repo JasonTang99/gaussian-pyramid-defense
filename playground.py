@@ -15,73 +15,123 @@ from models.gp_ensemble import GPEnsemble
 from models.resnet import MyResNet18
 from parse_args import *
 
-# fp = "cw_results"
+def evaluate_on(model, dataset='mnist', in_size=None):
+    model.cuda()
 
-# # Load GPEnsemble
-# args = process_args("attack")
-# args.up_samplers = 2
-# args.down_samplers = 2
-# args = post_process_args(args, "attack")
-# model = GPEnsemble(args)
+    if dataset == 'mnist':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1))
+        ])
+        train_data = MNIST(root='data', train=False, download=True, transform=transform)
+        if in_size is None:
+            in_size = 28
+    else:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+        ])
+        train_data = CIFAR10(root='data', train=False, download=True, transform=transform)
+        if in_size is None:
+            in_size = 32
 
-# print(len(model.models))
+    train_loader = DataLoader(train_data, batch_size=64, shuffle=False)
 
-# # sample input
-# x = torch.randn(12, 3, 32, 32).cuda()
-# y = model(x)
-# print(y)
-# print(y.shape)
+    # evaluate model
+    t = transforms.Compose([
+        transforms.Resize(in_size, interpolation=InterpolationMode.BILINEAR, antialias=True),
+    ])
+
+    correct = 0
+    with torch.no_grad():
+        for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = data.cuda(), target.cuda()
+            data = t(data)
+
+            output = model(data)
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    print("Accuracy: {}".format(correct / len(train_data)))
+
+
+for vm in "simple_avg weighted_avg majority_vote weighted_vote".split():
+    args = process_args("attack")
+    args.dataset = "mnist"
+    args.up_samplers = 2
+    args.down_samplers = 2
+    args.voting_method = vm
+    args = post_process_args(args, "attack")
+    model = GPEnsemble(args)
+
+    print(vm, end=" ")
+
+    evaluate_on(model, args.dataset)
+
+exit(0)
+
+# sample input
+
+# generate normalized model weights of shape 5
+w = torch.randn(5).cuda()
+w = F.softmax(w, dim=0)
+print(w, w.sum())
+
+# (5, 16, 10) sample
+x = torch.randn(5, 16, 10).cuda()
+
+
+
+# get argmax over dim 2
+y = torch.argmax(x, dim=2)
+print(y) # (5, 16)
+
+# one-hot encode y
+y = F.one_hot(y, num_classes=10)
+print(y.shape) # (5, 16, 10)
+
+# weight y by w
+y = y * w[:, None, None]
+print(y)
+
+# reduce over dim 0
+y = torch.sum(y, dim=0)
+print(y)
+
+# set dim 1 max to 1 and rest to 0
+y = torch.where(
+    y == torch.max(y, dim=1, keepdim=True)[0],
+    torch.ones_like(y),
+    torch.zeros_like(y)
+)
+y2 = torch.where(
+    y == torch.max(y, dim=1, keepdim=True)[0],
+    1.0,
+    0.0
+)
+print(torch.allclose(y, y2))
+print(y)
+
+# get mode over dim 0
+# z = torch.mode(y, dim=0)[0]
+# print(z)
+# one hot encode in dim 1
+# z = F.one_hot(z, num_classes=10)
+# print(z)
+# print(z.shape)
+
+exit(0)
+
+
+# model = create_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
+# # model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
+# model.load_state_dict(torch.load("trained_models/cifar10/resnet18_2.0-1_BL.pth"))
 
 
 # exit(0)
 
 
-model = create_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
 
-# print(model)
-
-# Load weights
-# model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
-model.load_state_dict(torch.load("trained_models/cifar10/resnet18_2.0-1_BL.pth"))
-
-# to cuda
-model.cuda()
-
-# MNIST
-# transform = transforms.Compose([
-#     transforms.ToTensor(),
-#     transforms.Lambda(lambda x: x.repeat(3, 1, 1))
-# ])
-# train_data = MNIST(root='data', train=False, download=True, transform=transform)
-# CIFAR10
-transform = transforms.Compose([
-    transforms.ToTensor(),
-])
-train_data = CIFAR10(root='data', train=False, download=True, transform=transform)
-
-train_loader = DataLoader(train_data, batch_size=64, shuffle=False)
-
-# evaluate model
-t = transforms.Compose([
-    transforms.Resize(14, interpolation=InterpolationMode.BILINEAR, antialias=True),
-])
-
-
-correct = 0
-with torch.no_grad():
-    for batch_idx, (data, target) in enumerate(train_loader):
-        data, target = data.cuda(), target.cuda()
-        data = t(data)
-
-        output = model(data)
-        pred = output.argmax(dim=1, keepdim=True)
-        correct += pred.eq(target.view_as(pred)).sum().item()
-
-print("Accuracy: {}".format(correct / len(train_data)))
-exit(0)
-
-
-
+fp = "cw_results"
 # # Load results
 # results = read_results(fp)
 # for w in [1e-4, 1e-5, 1e-6, 1e-8, 1e-10]:

@@ -32,7 +32,7 @@ def run(attack_type,
     )
     if os.path.exists(results_path):
         results = read_results(results_path)
-        print(len(results))
+        print(f"Loaded {len(results)} results")
     
     # outer loop defining the model
     for (up_samplers, down_samplers), interpolation, voting_method in itertools.product(
@@ -67,9 +67,7 @@ def run(attack_type,
         args.down_samplers = down_samplers
         args.interpolation = interpolation
         args.voting_method = voting_method
-
         args.archs = ['resnet18']
-
         # Post-process args
         args = post_process_args(args, mode="attack")
 
@@ -79,7 +77,8 @@ def run(attack_type,
         # Inner loop defining the attack parameters
         for norm, epsilon, nb_iter, eps_iter, rand_init, initial_const in itertools.product(
                 norms, epsilons, nb_iters, eps_iters, rand_inits, initial_consts):
-
+            if eps_iter > epsilon:
+                continue
             args.norm = norm
             args.epsilon = epsilon
             args.nb_iter = nb_iter
@@ -105,7 +104,7 @@ def run(attack_type,
                 print(var, "=", eval(var))
 
             # Run attack
-            test_acc, norm = evaluate_attack(args, model)
+            test_acc = evaluate_attack(args, model)
 
             # Save results
             results[attack_id] = (
@@ -129,45 +128,93 @@ def run(attack_type,
             # Store results
             write_results(results_path, results, dictionary=True, overwrite=True)
 
-if __name__ == "__main__":
-    # run FGSM attack (L1, L2, Linf)
-    for dataset in ["mnist", "cifar10"]:
-        for norm in [np.inf, 1, 2]:
-            if norm == 1:
-                epsilons = [x/256 for x in [2, 5, 10, 16]]
-            elif norm == 2:
-                epsilons = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]
-            else:
-                epsilons = [0.01, 0.1, 0.25]
-            up_down_pairs = [
-                *[(0, i) for i in range(0, 4)],
-                *[(i, 0) for i in range(1, 4)],
-                (1, 1), (2, 2), (3, 3),
-            ]
-            interpolations = ["bilinear"] #, "nearest"]
-            voting_methods = [
-                'simple_avg',
-                'weighted_avg',
-                # 'majority_vote',
-                # 'weighted_vote',
-            ]
-            
-            attack_results = run(
-                attack_type="fgsm",
-                dataset=dataset,
-                scaling_factor=2.0,
-                batch_size=128,
-                up_down_pairs=up_down_pairs,
-                interpolations=interpolations,
-                voting_methods=voting_methods,
-                norms=[norm],
-                epsilons=epsilons,
-            )
 
-    exit(0)
+if __name__ == "__main__":
+    # run FGSM attack (L2, Linf)
+    for scaling in [2.0, 1.1]:
+        for dataset in ["mnist", "cifar10"]:
+            for norm in [np.inf, 2]:
+                if norm == np.inf:
+                    epsilons = [x/256 for x in [2, 5, 10, 16]]
+                elif norm == 2:
+                    epsilons = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]
+                
+                if scaling == 2.0:
+                    up_down_pairs = [
+                        *[(0, i) for i in range(0, 4)],
+                        *[(i, 0) for i in range(1, 4)],
+                        (1, 1), (2, 2), (3, 3),
+                    ]
+                else:
+                    up_down_pairs = [
+                        *[(0, i) for i in [3, 5, 7]],
+                        *[(i, 0) for i in [3, 5, 7]],
+                        *[(i, i) for i in [3, 5, 7]],
+                    ]
+                interpolations = ["bilinear", "nearest"]
+                voting_methods = ['simple_avg', 'weighted_avg', ]
+                # 'weighted_vote']
+                # 'majority_vote', 
+                
+                attack_results = run(
+                    attack_type="fgsm",
+                    dataset=dataset,
+                    scaling_factor=scaling,
+                    batch_size=64,
+                    up_down_pairs=up_down_pairs,
+                    interpolations=interpolations,
+                    voting_methods=voting_methods,
+                    norms=[norm],
+                    epsilons=epsilons,
+                )
 
     # run PGD attack (L2, Linf)
-    eps_iters = [0.005, 0.01]
+    nb_iters = [40]
+    rand_inits = [True]
+
+    for scaling in [2.0, 1.1]:
+        for dataset in ["mnist", "cifar10"]:
+            for norm in [np.inf, 2]:
+                if norm == np.inf:
+                    epsilons = [x/256 for x in [2, 5, 10, 16]]
+                    eps_iters = [5e-4, 1e-3, 5e-3]
+                elif norm == 2:
+                    epsilons = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5]
+                    eps_iters = [0.005, 0.01, 0.02]
+
+                
+                if scaling == 2.0:
+                    up_down_pairs = [
+                        *[(0, i) for i in range(0, 4)],
+                        *[(i, 0) for i in range(1, 4)],
+                        (1, 1), (2, 2), (3, 3),
+                    ]
+                else:
+                    up_down_pairs = [
+                        *[(0, i) for i in [3, 5, 7]],
+                        *[(i, 0) for i in [3, 5, 7]],
+                        *[(i, i) for i in [3, 5, 7]],
+                    ]
+                interpolations = ["bilinear", "nearest"]
+                voting_methods = ['simple_avg', 'weighted_avg', ]
+                    # 'majority_vote', 'weighted_vote']
+                
+                attack_results = run(
+                    attack_type="fgsm",
+                    dataset=dataset,
+                    scaling_factor=scaling,
+                    batch_size=64,
+                    up_down_pairs=up_down_pairs,
+                    interpolations=interpolations,
+                    voting_methods=voting_methods,
+                    norms=[norm],
+                    epsilons=epsilons,
+                    eps_iters=eps_iters,
+                    nb_iters=nb_iters,
+                    rand_inits=rand_inits,
+                )
+
+    exit(0)
 
     # run CW attack (L2)
     up_down_pairs = [

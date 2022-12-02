@@ -22,7 +22,61 @@ from cleverhans_fixed.projected_gradient_descent import (
 from cleverhans_fixed.carlini_wagner_l2 import carlini_wagner_l2
 # from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
-def evaluate_attack(args, model, x, y, z):
+def evaluate_attack(args, model):
+    """
+    Evaluate model on attacked data. Only for baseline, fgsm, pgd attacks.
+    """
+    # load dataset
+    test_loader = load_data(args, 0, train=False)
+
+    # run evaluation
+    model.eval()
+    correct = 0
+    for images, labels in tqdm(test_loader):
+        images, labels = images.to(args.device), labels.to(args.device)
+
+        if args.attack_method == 'baseline':
+            pass
+        elif args.attack_method == 'fgsm':
+            images = fast_gradient_method(
+                model_fn=model,
+                x=images,
+                eps=args.epsilon,
+                norm=args.norm,
+                clip_min=0.0,
+                clip_max=1.0,
+            )
+        elif args.attack_method == 'pgd':
+            images = projected_gradient_descent(
+                model_fn=model,
+                x=images,
+                eps=args.epsilon,
+                eps_iter=args.eps_iter,
+                nb_iter=args.nb_iter,
+                norm=args.norm,
+                clip_min=0.0,
+                clip_max=1.0,
+                rand_init=args.rand_init,
+                sanity_checks=False
+            )
+        else:
+            raise ValueError(f'Invalid attack method: {args.attack_method}')
+        
+        outputs = model(images)
+        _, preds = torch.max(outputs, 1)
+        correct += torch.sum(preds == labels.data).detach().cpu()
+
+        # delete variables to save memory
+        del images, labels, outputs, preds
+
+    test_acc = correct.double() / len(test_loader.dataset)
+    print(f'Test Accuracy on {args.attack_method}: {test_acc}')
+
+    return test_acc
+
+
+
+def evaluate_cw(args, model, x, y, z):
     """
     Evaluate model on attacked data.
     """
