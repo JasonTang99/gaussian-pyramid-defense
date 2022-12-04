@@ -113,14 +113,16 @@ class GPEnsemble(nn.Module):
             outputs = F.one_hot(outputs, num_classes=self.num_classes)
 
             # Weighted sum (batch_size, num_classes)
-            output = torch.sum(
+            outputs = torch.sum(
                 outputs * self.model_weights.view(-1, 1, 1),
                 dim=0
             )
             # Set highest probability to 1 and rest to 0
             output = torch.where(
-                output == torch.max(output, dim=1, keepdim=True).values,
+                outputs == torch.max(outputs, dim=1, keepdim=True).values,
                 1.0, 0.0
             )
+        else:
+            raise ValueError("Invalid voting method", self.voting_method)
 
         return output

@@ -22,24 +22,28 @@ from cleverhans_fixed.projected_gradient_descent import (
 from cleverhans_fixed.carlini_wagner_l2 import carlini_wagner_l2
 # from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
-def evaluate_attack(args, model):
+def evaluate_attack(args, linear_model, voting_model):
     """
     Evaluate model on attacked data. Only for baseline, fgsm, pgd attacks.
+
+    models: [linear_model, voting_model]
     """
     # load dataset
     test_loader = load_data(args, 0, train=False)
 
     # run evaluation
-    model.eval()
-    correct = 0
-    for images, labels in tqdm(test_loader):
+    linear_model.eval()
+    voting_model.eval()
+    linear_correct, voting_correct = 0.0, 0.0
+    # for images, labels in tqdm(test_loader):
+    for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
 
         if args.attack_method == 'baseline':
             pass
         elif args.attack_method == 'fgsm':
             images = fast_gradient_method(
-                model_fn=model,
+                model_fn=linear_model,
                 x=images,
                 eps=args.epsilon,
                 norm=args.norm,
@@ -48,7 +52,7 @@ def evaluate_attack(args, model):
             )
         elif args.attack_method == 'pgd':
             images = projected_gradient_descent(
-                model_fn=model,
+                model_fn=linear_model,
                 x=images,
                 eps=args.epsilon,
                 eps_iter=args.eps_iter,
@@ -61,18 +65,22 @@ def evaluate_attack(args, model):
             )
         else:
             raise ValueError(f'Invalid attack method: {args.attack_method}')
-        
-        outputs = model(images)
-        _, preds = torch.max(outputs, 1)
-        correct += torch.sum(preds == labels.data).detach().cpu()
+
+        with torch.no_grad():
+            linear_out = linear_model(images)
+            voting_out = voting_model(images)
+            _, linear_preds = torch.max(linear_out, 1)
+            _, voting_preds = torch.max(voting_out, 1)
+            linear_correct += torch.sum(linear_preds == labels).detach().cpu()
+            voting_correct += torch.sum(voting_preds == labels).detach().cpu()
 
         # delete variables to save memory
-        del images, labels, outputs, preds
+        del images, labels, linear_out, voting_out, linear_preds, voting_preds
 
-    test_acc = correct.double() / len(test_loader.dataset)
-    print(f'Test Accuracy on {args.attack_method}: {test_acc}')
+    linear_acc = linear_correct / len(test_loader.dataset)
+    voting_acc = voting_correct / len(test_loader.dataset)
 
-    return test_acc
+    return linear_acc, voting_acc
 
 
 
@@ -139,8 +147,8 @@ def evaluate_cw(args, model, x, y, z):
     
         # l2_count += images.shape[0]
 
-        print(l2)
-        print(linf)
+        print(l2.max())
+        print(linf.max())
         # print("L2 max:", l2_max)
         # print("Linf max:", linf_max)
 
@@ -162,11 +170,20 @@ def evaluate_cw(args, model, x, y, z):
 
     if args.attack_method == 'cw':
         return correct.double(), l2_max, linf_max #TODO test_acc
-    return test_acc, 0, 0
+    # return test_acc, 0, 0
 
 
 if __name__ == "__main__":
     # parse args
+    args = parse_args('attack')
+    model = GPEnsemble(args)
+
+    args.epsilon = 0.3
+    evaluate_cw(args, model, 0,0,0)
+
+    print(f'Test Accuracy on {args.attack_method}: {test_acc}')
+    exit(0)
+    
     args = process_args(mode="attack")
     args.up_samplers = 0
     args.down_samplers = 0

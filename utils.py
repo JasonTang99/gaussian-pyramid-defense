@@ -33,11 +33,9 @@ def write_results(fp, results, dictionary=True, overwrite=False):
     with open(fp, "wb") as f:
         pickle.dump(results, f)
 
-
 # Calculate target resize shape for a given input size and scaling level
 def calc_resize_shape(in_size, scaling_exp, scaling_factor=2):
     return int(in_size * (scaling_factor ** scaling_exp))
-
 
 def create_resnet(arch="resnet18", num_classes=10, device="cpu", pretrained=True, grayscale=False):
     if arch == "resnet18":
