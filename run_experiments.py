@@ -214,12 +214,10 @@ if __name__ == "__main__":
 
     # general
     scalings, datasets, norms = [2.0, 1.1], ["mnist", "cifar10"], [np.inf, 2]
-    # home gpu
+    # jason gpu?
     scalings, datasets, norms = [1.1], ["mnist", "cifar10"], [np.inf, 2]
-    # wolf 1
-    # scalings, datasets, norms = [2.0], ["mnist"], [np.inf, 2]
-    # wolf 2
-    # scalings, datasets, norms = [2.0], ["cifar10"], [np.inf, 2]
+    # TODO: steven gpu?
+    scalings, datasets, norms = [2.0], ["mnist", "cifar10"], [np.inf, 2]
 
     for scaling, dataset, norm in itertools.product(scalings, datasets, norms):    
         if norm == np.inf:

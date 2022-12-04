@@ -82,58 +82,84 @@ def evaluate_attack(args, linear_model, voting_model):
 
     return linear_acc, voting_acc
 
-
-
-def evaluate_cw(args, model, x, y, z):
+def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.01, 0.1, 0.2, 0.3, 0.4, 0.5]):
     """
-    Evaluate model on attacked data.
+    Evaluate model on attacked data for C&W attacks. 
+    
+    Since C&W doesn't allow for specified epsilons, we run the attack at a certain setting 
+    and report the accuracy at different epsilon limits.
     """
     # load dataset
     test_loader = load_data(args, 0, train=False)
 
+    # create buckets to track adversarial examples within each epsilon limit
+    linear_correct = [0 for _ in range(len(epsilons))]
+    voting_correct = [0 for _ in range(len(epsilons))]
+    
     # run evaluation
-    model.eval()
-    correct = 0
-    l2_max, linf_max = 0, 0
-    l2_count = 0
+    linear_model.eval()
+    voting_model.eval()
+    
+    for images, labels in test_loader:
+        images, labels = images.to(args.device), labels.to(args.device)
+
+        adv_images = carlini_wagner_l2(
+            model_fn=model,
+            x=images,
+            n_classes=args.num_classes,
+            lr=1e-12,
+            binary_search_steps=10,
+            max_iterations=300,
+            initial_const=args.initial_const,
+        )
+
+        # Track the maximum L2 and Linf distances
+        l2 = torch.norm((images - adv_images).view(images.shape[0], -1), p=2, dim=1)
+
+        # Check which adversarial examples were successfully found
+        with torch.no_grad():
+            linear_out = linear_model(adv_images)
+            voting_out = voting_model(adv_images)
+            _, linear_preds = torch.max(linear_out, 1)
+            _, voting_preds = torch.max(voting_out, 1)
+            for i, eps in enumerate(epsilons):
+                linear_correct[i] += torch.sum((l2 < eps) & (linear_preds == labels)).detach().cpu()
+                voting_correct[i] += torch.sum((l2 < eps) & (voting_preds == labels)).detach().cpu()
+        
+        # delete variables to save memory
+        del images, labels, outputs, preds
+
+    linear_acc = [c / len(test_loader.dataset) for c in linear_correct]
+    voting_acc = [c / len(test_loader.dataset) for c in voting_correct]
+
+    return linear_acc, voting_acc
+
+
+def evaluate_cw(args, linear_model, x, y, z, voting_model=None, epsilons=[0.01, 0.1, 0.2, 0.3, 0.4, 0.5]):
+    """
+    Evaluate model on attacked data for C&W attacks.
+    """
+    # load dataset
+    test_loader = load_data(args, 0, train=False)
+
+    # create buckets to track adversarial examples within each epsilon limit
+    correct = {eps: 0 for eps in epsilons}
+    
+    # run evaluation
+    linear_model.eval()
     # for images, labels in tqdm(test_loader):
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
 
-        if args.attack_method == 'baseline':
-            pass
-        elif args.attack_method == 'fgsm':
-            adv_images = fast_gradient_method(
-                model_fn=model,
-                x=images,
-                eps=args.epsilon,
-                norm=args.norm,
-                clip_min=0.0,
-                clip_max=1.0,
-            )
-        elif args.attack_method == 'pgd':
-            adv_images = projected_gradient_descent(
-                model_fn=model,
-                x=images,
-                eps=args.epsilon,
-                eps_iter=args.eps_iter,
-                nb_iter=args.nb_iter,
-                norm=args.norm,
-                clip_min=0.0,
-                clip_max=1.0,
-                rand_init=args.rand_init,
-                sanity_checks=False
-            )
-        elif args.attack_method == 'cw':
-            adv_images = carlini_wagner_l2(
-                model_fn=model,
-                x=images,
-                n_classes=args.num_classes,
-                lr=x,
-                binary_search_steps=y,
-                max_iterations=z-100,
-                initial_const=args.initial_const,
-            )
+        adv_images = carlini_wagner_l2(
+            model_fn=model,
+            x=images,
+            n_classes=args.num_classes,
+            lr=x,
+            binary_search_steps=y,
+            max_iterations=z-100,
+            initial_const=args.initial_const,
+        )
             
         # Track the maximum L2 and Linf distances
         diff = (images - adv_images).view(images.shape[0], -1)
@@ -147,52 +173,42 @@ def evaluate_cw(args, model, x, y, z):
     
         # l2_count += images.shape[0]
 
-        print(l2.max())
-        print(linf.max())
+        print(l2)
+        print(linf)
         # print("L2 max:", l2_max)
         # print("Linf max:", linf_max)
 
         outputs = model(adv_images)
         _, preds = torch.max(outputs, 1)
-        correct += torch.sum(preds == labels.data).detach().cpu()
+        # correct += torch.sum(preds == labels.data).detach().cpu()
 
         # delete variables to save memory
         del images, labels, outputs, preds
 
         # TODO: delete
-        print(correct)
+        # print(correct)
         break
         # if l2_count >= 1024:
         #     break
 
     # test_acc = correct.double() / len(test_loader.dataset)
     # print(f'Test Accuracy on {args.attack_method}: {test_acc}')
-
-    if args.attack_method == 'cw':
-        return correct.double(), l2_max, linf_max #TODO test_acc
-    # return test_acc, 0, 0
+    # return correct.double(), l2_max, linf_max #TODO test_acc
+    return 0, 0, 0
 
 
 if __name__ == "__main__":
     # parse args
-    args = parse_args('attack')
-    model = GPEnsemble(args)
-
-    args.epsilon = 0.3
-    evaluate_cw(args, model, 0,0,0)
-
-    print(f'Test Accuracy on {args.attack_method}: {test_acc}')
-    exit(0)
-    
     args = process_args(mode="attack")
+    
+    args.epsilon = 0.3
     args.up_samplers = 0
     args.down_samplers = 0
     
     args.attack_method = "cw"
-    args.batch_size = 8
+    args.batch_size = 12
     
     args = post_process_args(args, mode="attack")
-
 
     # set random seeds
     torch.manual_seed(0)
@@ -201,26 +217,15 @@ if __name__ == "__main__":
     model = GPEnsemble(args)
 
     # run attack
-    # args.epsilon = 0.4
-    # test_acc, _, _ = evaluate_attack(args, model, 0, 0, 0)
-    # exit(0)
-    # lr=x,
-    # binary_search_steps=y,
-    # max_iterations=z,
-    # res = {}
-    # fp="cw_results_0_0"
-    # if os.path.exists(fp):
-    #     res = read_results(fp)
-    #     print("loaded {}".format(len(res)))
-    for w in [1e-4, 1e-6, 1e-8, 1e-10, 1e-12]:
-        for x in [0.5]:
-            for y in [1, 2, 4, 6, 8, 10]:
-                for z in [500]:
+    for w in [1e-16, 1e-12, 1e-8, ]:
+        for x in [1e-2]:
+            for y in [10]:
+                for z in [300, 1000]:
                     # if (w, x, y, z) in res:
                     #     continue
                     print("======================= w", w, "x", x, "y", y, "z", z)
                     args.initial_const = w
-                    correct, l2, linf = evaluate_attack(args, model, x, y, z)
+                    correct, l2, linf = evaluate_cw(args, model, x, y, z)
                     # res[(w, x, y, z)] = (correct, l2, linf)
                     # write_results(fp, res)
 
