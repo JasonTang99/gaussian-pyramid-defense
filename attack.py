@@ -22,7 +22,7 @@ from cleverhans_fixed.projected_gradient_descent import (
 from cleverhans_fixed.carlini_wagner_l2 import carlini_wagner_l2
 # from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
-def evaluate_attack(args, linear_model, voting_model):
+def evaluate_attack(args, linear_model, voting_model=None):
     """
     Evaluate model on attacked data. Only for baseline, fgsm, pgd attacks.
 
@@ -33,9 +33,9 @@ def evaluate_attack(args, linear_model, voting_model):
 
     # run evaluation
     linear_model.eval()
-    voting_model.eval()
+    if voting_model is not None:
+        voting_model.eval()
     linear_correct, voting_correct = 0.0, 0.0
-    # for images, labels in tqdm(test_loader):
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
 
@@ -68,21 +68,20 @@ def evaluate_attack(args, linear_model, voting_model):
 
         with torch.no_grad():
             linear_out = linear_model(images)
-            voting_out = voting_model(images)
             _, linear_preds = torch.max(linear_out, 1)
-            _, voting_preds = torch.max(voting_out, 1)
             linear_correct += torch.sum(linear_preds == labels).detach().cpu()
-            voting_correct += torch.sum(voting_preds == labels).detach().cpu()
 
-        # delete variables to save memory
-        del images, labels, linear_out, voting_out, linear_preds, voting_preds
+            if voting_model is not None:
+                voting_out = voting_model(images)
+                _, voting_preds = torch.max(voting_out, 1)
+                voting_correct += torch.sum(voting_preds == labels).detach().cpu()
 
     linear_acc = linear_correct / len(test_loader.dataset)
     voting_acc = voting_correct / len(test_loader.dataset)
 
     return linear_acc, voting_acc
 
-def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.5, 1.0, 2.0, 3.5]):
+def evaluate_cw_l2(args, linear_model, voting_model=None, epsilons=[0.5, 1.0, 2.0, 3.5]):
     """
     Evaluate model on attacked data for C&W attacks. 
     
@@ -98,7 +97,8 @@ def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.5, 1.0, 2.0, 3.
     
     # run evaluation
     linear_model.eval()
-    voting_model.eval()
+    if voting_model is not None:
+        voting_model.eval()
     
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
@@ -119,12 +119,14 @@ def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.5, 1.0, 2.0, 3.
         # Check which adversarial examples were successfully found
         with torch.no_grad():
             linear_out = linear_model(adv_images)
-            voting_out = voting_model(adv_images)
             _, linear_preds = torch.max(linear_out, 1)
-            _, voting_preds = torch.max(voting_out, 1)
+            if voting_model is not None:
+                voting_out = voting_model(adv_images)
+                _, voting_preds = torch.max(voting_out, 1)
             for i, eps in enumerate(epsilons):
                 linear_correct[i] += torch.sum((l2 > eps) | (linear_preds == labels)).detach().cpu()
-                voting_correct[i] += torch.sum((l2 > eps) | (voting_preds == labels)).detach().cpu()
+                if voting_model is not None:
+                    voting_correct[i] += torch.sum((l2 > eps) | (voting_preds == labels)).detach().cpu()
         print(linear_correct)
         print(voting_correct)
         
