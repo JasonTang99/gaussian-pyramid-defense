@@ -8,7 +8,7 @@ import argparse
 from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
 
-from models.denoisers import DnCNN, REDNet20, DAE
+from models.denoisers import DnCNN, REDNet20, REDNet10, DAE
 from custom_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
 from utils import create_resnet
 
@@ -65,7 +65,7 @@ def show_batch(images, noisy, denoised, n=6):
     plt.show()
 
 
-def evaluate_model(model, data_loader, mode, test=False):
+def evaluate_model(model, data_loader, mode, test=False, show=False):
     if test: model.eval()
 
     avg_psnr=0
@@ -88,7 +88,7 @@ def evaluate_model(model, data_loader, mode, test=False):
 
         total += len(images)
     
-    show_batch(images, noisy, output, n=10)
+    if show: show_batch(images, noisy, output, n=10)
 
     print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr/total, avg_ssim/total))
 
@@ -98,7 +98,8 @@ def train(args, model, train_loader, val_loader, use_scheduler=False):
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     if use_scheduler:
-        lambda1 = lambda epoch: 0.65 ** epoch
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+        lambda1 = lambda epoch: 0.7 ** epoch
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
 
     losses = []
@@ -113,9 +114,9 @@ def train(args, model, train_loader, val_loader, use_scheduler=False):
             #     noise_level = np.random.uniform(args.noise_level[0], args.noise_level[-1])
             #     noisy_imgs = add_gaussian_noise(images, noise_level)
             # else: # attack
-            noisy_imgs = labels
             # noisy_imgs = add_noise(images, args.adv_mode, noise_level)
-                    
+
+            noisy_imgs = labels      
             optimizer.zero_grad()
             # denoiser
             denoised = model(noisy_imgs)
@@ -141,8 +142,9 @@ def train(args, model, train_loader, val_loader, use_scheduler=False):
         # evaluate_model(model, val_loader, args.adv_mode, test=False) 
         if use_scheduler: 
             scheduler.step()
+            print("Learning Rate: ", optimizer.param_groups[0]['lr'])
 
-    show_batch(images, noisy_imgs, denoised, n=10)
+    #show_batch(images, noisy_imgs, denoised, n=10)
     pbar.close()
     return losses
 
@@ -155,13 +157,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--arch', type=str, default='dncnn', help='Dataset to train on. One of [dncnn, dae].')
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
-    #parser.add_argument('--pretrained', type=bool, default=True, help='Whether to start from pretrained ensemble models.')
     parser.add_argument('--adv_mode', type=str, default='gaussian', help='type of adversarial noise')
     parser.add_argument('--norm', type=str, default='inf', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
     parser.add_argument('--noise_level', type=float, nargs='+', default=[0.05, 0.2], help='noise level range, sigma for gaussian, eps for adversarial')
     parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train for.')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate.')
+    parser.add_argument('--use_scheduler', action='store_true', help='scheduler')
 
     args = parser.parse_args()
 
@@ -180,7 +182,6 @@ if __name__ == '__main__':
     test_data = AdversarialDataset(args, train=False, mixed=(True if args.adv_mode == 'mixed' else False))
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False)
-    test_dataset(args, train_data)
 
     print("Train Size: ", len(train_loader.dataset))
 
@@ -211,11 +212,11 @@ if __name__ == '__main__':
         print(f"learning rate: {args.lr}")
         print(f"batch size: {args.batch_size}")
         print("=======================================================")
-        train(args, model, train_loader, test_loader)
+        train(args, model, train_loader, test_loader, use_scheduler=args.use_scheduler)
         # save model
         if not os.path.isdir('trained_denoisers'): os.mkdir('trained_denoisers')
 
         torch.save(model.state_dict(), os.path.join("trained_denoisers", model_name))
 
     # eval
-    evaluate_model(model, test_loader, args.adv_mode, test=True)
+    evaluate_model(model, test_loader, args.adv_mode, test=True, show=False)
