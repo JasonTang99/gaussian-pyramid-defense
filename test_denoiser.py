@@ -47,11 +47,12 @@ def show_batch(org, adv, denoised, n=6):
     plt.subplots_adjust(hspace = 0.5)    
     plt.show()
 
-def test_acc(model, denoiser, test_loader, eps, norm, attack):
+def test_acc(model, denoiser, test_loader, attack, norm, eps, show=False, denoiser2=None):
     model.eval()
     accuracy1 = 0.0
     accuracy2 = 0.0
     accuracy3 = 0.0
+    accuracy4 = 0.0
     total = 0.0
     
     # with torch.no_grad():
@@ -72,8 +73,8 @@ def test_acc(model, denoiser, test_loader, eps, norm, attack):
                 model_fn=model,
                 x=images,
                 eps=eps,
-                eps_iter=0.01,
-                nb_iter=20,
+                eps_iter=5e-4,
+                nb_iter=40,
                 norm=norm,
                 clip_min=0.0,
                 clip_max=1.0,
@@ -84,9 +85,12 @@ def test_acc(model, denoiser, test_loader, eps, norm, attack):
                 model_fn=model,
                 x=images,
                 n_classes=10,
-                max_iterations=10
+                lr=5e-3,
+                binary_search_steps=5,
+                max_iterations=100,
+                initial_const=1e-3
             )
-        else: pass
+        else: x_adv = images
 
         # baseline
         outputs = model(images)
@@ -104,18 +108,27 @@ def test_acc(model, denoiser, test_loader, eps, norm, attack):
         accuracy1 += (pred == labels).sum().item()
         accuracy2 += (pred_adv == labels).sum().item()
         accuracy3 += (pred_dn == labels).sum().item()
+
+        if denoiser2: # second denoiser
+            denoised2 = denoiser2(x_adv)
+            denoised2_outputs = model(denoised2)
+            _, pred_dn2 = torch.max(denoised2_outputs, 1)
+            accuracy4 += (pred_dn2 == labels).sum().item()
+
     
-    show_batch(images, x_adv, denoised, n=10)
+    if show or attack == 'cw': show_batch(images, x_adv, denoised, n=10)
 
     # compute the accuracy over all test images
     accuracy1 = (accuracy1 / total)
     accuracy2 = (accuracy2 / total)
     accuracy3 = (accuracy3 / total)
+    accuracy4 = (accuracy4 / total)
     print("Test Accuracy no attack: {}".format(accuracy1))
     print("Test Accuracy with {} attack: {}".format(attack, accuracy2))
-    print("Test Accuracy with {} attack + denoiser: {}".format(attack, accuracy3))
+    print("Test Accuracy with {} attack + denoiser1: {}".format(attack, accuracy3))
+    print("Test Accuracy with {} attack + denoiser2: {}".format(attack, accuracy4))
 
-    return accuracy1, accuracy2, accuracy3
+    return accuracy1, accuracy2, accuracy3, accuracy4
 
 
 if __name__ == '__main__':
@@ -130,14 +143,20 @@ if __name__ == '__main__':
     parser.add_argument('--arch', type=str, default='dncnn', help='Dataset to train on. One of [dncnn, dae1, dae2].')
     parser.add_argument('--denoiser', type=str, default='gaussian', help='')
     parser.add_argument('--adv_mode', type=str, default='fgsm', help='type of adversarial noise')
-    parser.add_argument('--eps', type=float, default=3, help='perturbation level')
-    parser.add_argument('--norm', type=str, default='2', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
+    parser.add_argument('--eps', type=float, default=16/256, help='perturbation level')
+    parser.add_argument('--norm', type=str, default='inf', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
+
+    # pgd attack parameters
+    parser.add_argument('--nb_iter', type=int, default=40, help='Number of steps for PGD attack. Usually 40 or 100.')
+    parser.add_argument('--eps_iter', type=float, default=0.01, help='Step size for PGD attack.')
+    parser.add_argument('--rand_init', type=bool, default=False, help='Whether to use random initialization for PGD attack.')
+    # # cw attack parameters
+    # parser.add_argument('--confidence', type=float, default=0, help='Confidence for CW attack.')
     args = parser.parse_args()
 
     # load data
-    #if adv_mode = "cw"
-    _, test_loader = get_dataloader(args.dataset, args.batch_size, val=False)
+    _, test_loader = get_dataloader(args.dataset, args.batch_size, sample_test=True)
 
     # denoiser model
     if args.arch == 'dncnn':
@@ -151,7 +170,7 @@ if __name__ == '__main__':
     denoiser.load_state_dict(torch.load(denoiser_path, map_location=device))
 
     #load classification model
-    net = create_resnet(device=device)
+    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
 

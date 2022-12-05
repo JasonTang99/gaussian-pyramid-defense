@@ -24,18 +24,24 @@ class AdversarialDataset(Dataset):
     def __init__(self, args, root='./custom_data', train=True, mixed=False):
         if mixed:
             if train:
-                gt = torch.load(os.path.join(root, f"{args.dataset}_train.pt"))
-                gaussian_dataset = torch.load(os.path.join(root, f"{args.dataset}_gaussian_train.pt"))
-                fgsm_datset = torch.load(os.path.join(root, f"{args.dataset}_fgsm_norm{args.norm}_train.pt"))
-                pgd_dataset = torch.load(os.path.join(root, f"{args.dataset}_pgd_norm{args.norm}_train.pt")) 
+                path0 = os.path.join(root, f"{args.dataset}_train.pt")
+                path1 = os.path.join(root, f"{args.dataset}_gaussian_train.pt")
+                path2 = os.path.join(root, f"{args.dataset}_fgsm_norm{args.norm}_train.pt")
+                path3 = os.path.join(root, f"{args.dataset}_pgd_norm{args.norm}_train.pt")
+                
             else:
-                gt = torch.load(os.path.join(root, f"{args.dataset}_test.pt"))
-                gaussian_dataset = torch.load(os.path.join(root, f"{args.dataset}_gaussian_test.pt"))
-                fgsm_datset = torch.load(os.path.join(root, f"{args.dataset}_fgsm_norm{args.norm}_test.pt"))
-                pgd_dataset = torch.load(os.path.join(root, f"{args.dataset}_pgd_norm{args.norm}_test.pt"))
+                path0 = os.path.join(root, f"{args.dataset}_test.pt")
+                path1 = os.path.join(root, f"{args.dataset}_gaussian_test.pt")
+                path2 = os.path.join(root, f"{args.dataset}_fgsm_norm{args.norm}_test.pt")
+                path3 = os.path.join(root, f"{args.dataset}_pgd_norm{args.norm}_test.pt")
 
+            gt = torch.load(path0)
+            gaussian_dataset = torch.load(path1)
+            fgsm_datset = torch.load(path2)
+            pgd_dataset = torch.load(path3)
             self.clean = torch.cat([gt, gt, gt], dim=0)
             self.noisy = torch.cat([gaussian_dataset, fgsm_datset, pgd_dataset], dim=0)
+            print("Loaded Datasets:\n{}\n{}\n{}".format(path1, path2, path3))
         else:
             if train:
                 gt = f"{args.dataset}_train.pt"
@@ -57,7 +63,7 @@ class AdversarialDataset(Dataset):
 def img_to_numpy(x):
     return np.clip(x.detach().cpu().numpy().squeeze().transpose(1, 2, 0), 0., 1.)
 
-def get_dataset(dataset):
+def get_dataset(dataset, sample_test=False):
     if dataset == 'mnist':
         transform = transforms.Compose([
             transforms.ToTensor(),
@@ -73,29 +79,32 @@ def get_dataset(dataset):
         test_data = CIFAR10(root='./data', train=False, download=True, transform=transform)     
     else:
         raise ValueError("Dataset not supported.")
-    
+
+    if sample_test: #subsample 1000 images for testset
+        # select 1000 random samples
+        torch.manual_seed(0)
+        indices = torch.randperm(len(test_data))[:1024]
+        test_data = torch.utils.data.Subset(test_data, indices)
+        
     return train_data, test_data
 
-def get_dataloader(dataset, batch_size, val=False):
-    train_data, test_data = get_dataset(dataset)
+def get_dataloader(dataset, batch_size, sample_test=False):
+    train_data, test_data = get_dataset(dataset, sample_test=sample_test)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
 
-    if val:
-        # 80/20 train/validation split
-        train_data, val_data = torch.utils.data.random_split(train_data, [0.8, 0.2])
-        val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-
-        return train_loader, val_loader, test_loader
-
-    else: return train_loader, test_loader
+    return train_loader, test_loader
 
 
-def generate_attack(model, images, attack_mode, eps_range):
+def generate_attack(model, images, attack_mode, eps_range, grayscale=False):
     # generate random noise level within given range
     eps_random = np.random.uniform(eps_range[0], eps_range[-1])
     if attack_mode == 'gaussian':
-        images = images + torch.randn_like(images) * eps_random
+        if grayscale: 
+            noise = torch.randn_like(images[:, 0, :, :].unsqueeze(1)) * eps_random
+        else: 
+            noise = torch.randn_like(images) * eps_random
+        images = torch.clamp(images + noise, min=0.0, max=1.0)
     elif attack_mode == 'fgsm':
         images = fast_gradient_method(
             model_fn=model,
@@ -124,6 +133,8 @@ def generate_attack(model, images, attack_mode, eps_range):
             n_classes=10,
             max_iterations=10
         )
+    else:
+        raise ValueError("attack mode {} not supported".format(attack_mode))
 
     return images
 
@@ -150,12 +161,12 @@ def generate_adv_examples(args, model):
         # generate attack examples    
         for (images, _) in tqdm(train_loader):
             images = images.to(device)
-            images = generate_attack(model, images, args.adv_mode, args.eps_range)
+            images = generate_attack(model, images, args.adv_mode, args.eps_range, grayscale=(args.dataset == 'mnist'))
             train_list.append(images.detach().cpu())
         
         for (images, _) in tqdm(test_loader):
             images = images.to(device)
-            images = generate_attack(model, images, args.adv_mode, args.eps_range)
+            images = generate_attack(model, images, args.adv_mode, args.eps_range, grayscale=(args.dataset == 'mnist'))
             test_list.append(images.detach().cpu())
         
     train_tensor = torch.cat(train_list, dim=0)
@@ -168,9 +179,9 @@ def generate_adv_examples(args, model):
 
 
 def test_dataset(args, ds):
-    print(args.train_file_name)
-    print(args.test_file_name)
-    idx = np.random.randint(0, 1000)
+    #print(args.train_file_name)
+    #print(args.test_file_name)
+    idx = np.random.randint(0, 100)
     print(idx)
 
     #ds = AdversarialDataset(args, train=True, mixed=(True if args.adv_mode == 'mixed' else False))
@@ -194,7 +205,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
     parser.add_argument('--adv_mode', type=str, default='fgsm', help='type of adversarial noise')
-    parser.add_argument('--peek', type=bool, default=False, help='peek or generate')
+    parser.add_argument('--peek', action='store_true', help='peek or generate')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--norm', type=str, default='inf', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
 
@@ -206,16 +217,21 @@ if __name__ == '__main__':
     # parser.add_argument('--confidence', type=float, default=0, help='Confidence for CW attack.')
 
     args = parser.parse_args()
-    if args.norm == 'inf' or args.adv_mode == 'gaussian':
+    if args.norm == 'inf':
         if args.dataset == 'mnist':
-            args.eps_range = [0.05, 0.2]
+            args.eps_range = [8 / 256, 32 / 256]
         elif args.dataset == 'cifar10':
-            args.eps_range = [0.02, 0.075]
+            if args.adv_mode == 'gaussian':
+                args.eps_range = [6 / 256, 16 / 256]
+            elif args.adv_mode == 'fgsm':
+                args.eps_range = [5 / 256, 16 / 256]
+            else:
+                args.eps_range = [5 / 256, 16 / 256]
     elif args.norm == '2':
         if args.dataset == 'mnist':
-            args.eps_range = [0.25, 3]
+            args.eps_range = [0.1, 0.75]
         elif args.dataset == 'cifar10':
-            args.eps_range = [0.2, 1.5]
+            args.eps_range = [0.05, 0.5]
 
 
     if args.adv_mode == 'none':
@@ -229,7 +245,8 @@ if __name__ == '__main__':
         args.test_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_test.pt"
 
     # classification model
-    net = create_resnet(device=device)
+    # print((args.dataset == 'mnist'))
+    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
     print("Generating Adversarial Examples ...")
@@ -239,6 +256,6 @@ if __name__ == '__main__':
     print(f"eps range: {args.eps_range}")
     print("=======================================================")
     if not args.peek: generate_adv_examples(args, net)
-
-    #ds = AdversarialDataset(args, train=True, mixed=(True if args.adv_mode == 'mixed' else False))
-    #test_dataset(args, ds)
+    else: 
+        ds = AdversarialDataset(args, train=True, mixed=(args.adv_mode == 'mixed'))
+        test_dataset(args, ds)
