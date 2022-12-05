@@ -105,7 +105,7 @@ def run(attack_type,
         for norm, epsilon, nb_iter, eps_iter, rand_init, initial_const in itertools.product(
                 norms, epsilons, nb_iters, eps_iters, rand_inits, initial_consts):
             pbar.update(1)
-            if eps_iter > epsilon:
+            if eps_iter > epsilon and attack_type == "pgd":
                 continue
 
             for args in [linear_args, voting_args]:
@@ -255,10 +255,11 @@ def run_cw(
 
             # Generate identifier for this attack
             attack_id = linear_model_id + "_{}_{}_{}".format(
-                norm, initial_const, epsilons
+                norm, epsilons[0], initial_const
             )
             # Check if attack has already been run
             if attack_id in results:
+                print("Attack already run, skipping...")
                 continue
             
             # Load models if not already loaded
@@ -379,10 +380,7 @@ def experiment_cw():
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
     
-    # Jason
-    scalings, datasets = [1.1, 2.0], ["mnist"]
-    # Steven
-    # scalings, datasets = [2.0], ["mnist"]
+    scalings, datasets = [1.1, 2.0], ["mnist", "cifar10"]
 
     for scaling, dataset in itertools.product(scalings, datasets):    
         if scaling == 2.0:
