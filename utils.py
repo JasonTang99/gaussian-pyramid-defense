@@ -56,34 +56,3 @@ def create_resnet(arch="resnet18", num_classes=10, device="cpu", pretrained=True
     model = model.to(device)
 
     return model
-
-# # Generate resnet model
-# def create_resnet(arch="resnet18", num_classes=10, device="cpu", pretrained=True):
-#     """
-#     Create resnet model.
-#     """
-#     if arch == "resnet18":
-#         model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1 
-#                          if pretrained else None)
-#     elif arch == "resnet34":
-#         model = resnet34(weights=ResNet34_Weights.IMAGENET1K_V1
-#                          if pretrained else None)
-#     elif arch == "resnet50":
-#         model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1
-#                          if pretrained else None)
-#     else:
-#         raise ValueError("Model not supported.")
-    
-#     # change output size
-#     model.fc = nn.Linear(model.fc.in_features, num_classes)
-
-#     # freeze all non-fc layers
-#     # for param in model.parameters():
-#     #     param.requires_grad = False
-#     # for param in model.fc.parameters():
-#     #     param.requires_grad = True
-    
-#     # move model to device
-#     model = model.to(device)
-    
-#     return model
