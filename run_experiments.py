@@ -9,6 +9,7 @@ import pickle
 from parse_args import process_args, post_process_args
 from attack import evaluate_attack, evaluate_cw_l2
 from models.gp_ensemble import GPEnsemble
+from models.denoisers import DnCNN
 from utils import read_results, write_results
 
 from tqdm import tqdm
@@ -26,14 +27,21 @@ def run(attack_type,
         eps_iters=[0.01],       # pgd only
         rand_inits=[False],     # pgd only
         initial_consts=[0.1],   # cw only
-        verbose=True
+        verbose=True,
+        use_denoiser=True
     ):
 
     # load existing results
     results = {}
-    results_path = "attack_results/{}_{}_{}_results".format(
-        dataset, attack_type, scaling_factor
-    )
+    if use_denoiser:
+        results_path = "attack_results/{}_{}_{}_denoiser_results".format(
+            dataset, attack_type, scaling_factor
+        )
+    else:
+        results_path = "attack_results/{}_{}_{}_results".format(
+            dataset, attack_type, scaling_factor
+        )
+
     if os.path.exists(results_path):
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
@@ -137,8 +145,16 @@ def run(attack_type,
                 linear_model = GPEnsemble(linear_args)
                 voting_model = GPEnsemble(voting_args)
 
+            # Load DnCNN denoiser
+            if use_denoiser:
+                denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(linear_args.device)
+                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed.pth')
+                denoiser.load_state_dict(torch.load(dn_path, map_location=linear_args.device))
+            else:
+                denoiser = None
+
             # Run attack
-            linear_acc, voting_acc = evaluate_attack(linear_args, linear_model, voting_model)
+            linear_acc, voting_acc = evaluate_attack(linear_args, linear_model, voting_model, denoiser)
 
             # Print attack parameters
             if verbose:
@@ -177,7 +193,8 @@ def run_cw(
         voting_methods,
         epsilons,
         initial_consts=[1e-8],   # cw only
-        verbose=True
+        verbose=True,
+        use_denoiser=True
     ):
     attack_type = "cw"
     norms = [2.0]
@@ -185,9 +202,15 @@ def run_cw(
 
     # load existing results
     results = {}
-    results_path = "attack_results/{}_{}_{}_results".format(
-        dataset, attack_type, scaling_factor
-    )
+    if use_denoiser:
+        results_path = "attack_results/{}_{}_{}_denoiser_results".format(
+            dataset, attack_type, scaling_factor
+        )
+    else:
+        results_path = "attack_results/{}_{}_{}_results".format(
+            dataset, attack_type, scaling_factor
+        )
+
     if os.path.exists(results_path):
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
@@ -266,6 +289,14 @@ def run_cw(
             if linear_model is None:
                 linear_model = GPEnsemble(linear_args)
                 voting_model = GPEnsemble(voting_args)
+
+            # Load DnCNN denoiser
+            if use_denoiser:
+                denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(linear_args.device)
+                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed.pth')
+                denoiser.load_state_dict(torch.load(dn_path, map_location=linear_args.device))
+            else:
+                denoiser = None
 
             # Run attack
             linear_acc, voting_acc = evaluate_cw_l2(linear_args, 
@@ -405,7 +436,7 @@ def experiment_cw():
         )
 
 if __name__ == "__main__":
-    # experiment_fgsm()
+    experiment_fgsm()
     experiment_pgd()
     experiment_cw()
 
