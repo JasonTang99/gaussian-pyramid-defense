@@ -14,6 +14,7 @@ import random
 from models.gp_ensemble import GPEnsemble
 from models.resnet import MyResNet18
 from parse_args import *
+from load_ens_adv_train import get_ens_adv_model
 
 def evaluate_on(model, dataset='mnist', in_size=None):
     model.cuda()
@@ -52,6 +53,21 @@ def evaluate_on(model, dataset='mnist', in_size=None):
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     print("Accuracy: {}".format(correct / len(train_data)))
+
+
+
+# model = create_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
+# # model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
+# model.load_state_dict(torch.load("trained_models/cifar10/resnet18_1.1+0_BL.pth"))
+# evaluate_on(model, dataset='cifar10')
+
+# exit(0)
+
+
+model = get_ens_adv_model()
+evaluate_on(model, dataset='cifar10')
+exit(0)
+
 
 
 for vm in "simple_avg weighted_avg majority_vote weighted_vote".split():
@@ -122,12 +138,7 @@ print(y)
 exit(0)
 
 
-# model = create_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
-# # model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
-# model.load_state_dict(torch.load("trained_models/cifar10/resnet18_2.0-1_BL.pth"))
 
-
-# exit(0)
 
 
 

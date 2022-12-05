@@ -82,7 +82,7 @@ def evaluate_attack(args, linear_model, voting_model):
 
     return linear_acc, voting_acc
 
-def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.01, 0.1, 0.2, 0.3, 0.4, 0.5]):
+def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.5, 1.0, 2.0, 3.5]):
     """
     Evaluate model on attacked data for C&W attacks. 
     
@@ -104,12 +104,12 @@ def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.01, 0.1, 0.2, 0
         images, labels = images.to(args.device), labels.to(args.device)
 
         adv_images = carlini_wagner_l2(
-            model_fn=model,
+            model_fn=linear_model,
             x=images,
             n_classes=args.num_classes,
-            lr=1e-12,
+            lr=5e-3,
             binary_search_steps=10,
-            max_iterations=300,
+            max_iterations=100,
             initial_const=args.initial_const,
         )
 
@@ -123,78 +123,15 @@ def evaluate_cw_l2(args, linear_model, voting_model, epsilons=[0.01, 0.1, 0.2, 0
             _, linear_preds = torch.max(linear_out, 1)
             _, voting_preds = torch.max(voting_out, 1)
             for i, eps in enumerate(epsilons):
-                linear_correct[i] += torch.sum((l2 < eps) & (linear_preds == labels)).detach().cpu()
-                voting_correct[i] += torch.sum((l2 < eps) & (voting_preds == labels)).detach().cpu()
+                linear_correct[i] += torch.sum((l2 > eps) | (linear_preds == labels)).detach().cpu()
+                voting_correct[i] += torch.sum((l2 > eps) | (voting_preds == labels)).detach().cpu()
+        print(linear_correct)
+        print(voting_correct)
         
-        # delete variables to save memory
-        del images, labels, outputs, preds
-
     linear_acc = [c / len(test_loader.dataset) for c in linear_correct]
     voting_acc = [c / len(test_loader.dataset) for c in voting_correct]
 
     return linear_acc, voting_acc
-
-
-def evaluate_cw(args, linear_model, x, y, z, voting_model=None, epsilons=[0.01, 0.1, 0.2, 0.3, 0.4, 0.5]):
-    """
-    Evaluate model on attacked data for C&W attacks.
-    """
-    # load dataset
-    test_loader = load_data(args, 0, train=False)
-
-    # create buckets to track adversarial examples within each epsilon limit
-    correct = {eps: 0 for eps in epsilons}
-    
-    # run evaluation
-    linear_model.eval()
-    # for images, labels in tqdm(test_loader):
-    for images, labels in test_loader:
-        images, labels = images.to(args.device), labels.to(args.device)
-
-        adv_images = carlini_wagner_l2(
-            model_fn=model,
-            x=images,
-            n_classes=args.num_classes,
-            lr=x,
-            binary_search_steps=y,
-            max_iterations=z-100,
-            initial_const=args.initial_const,
-        )
-            
-        # Track the maximum L2 and Linf distances
-        diff = (images - adv_images).view(images.shape[0], -1)
-        l2 = torch.norm(diff, p=2, dim=1)
-        linf = torch.norm(diff, p=float('inf'), dim=1)
-
-        # l2_max = max(l2_max, l2)
-        # linf_max = max(linf_max, linf)
-
-        # linf_max = max(linf_max, torch.sum(torch.norm(diff, p=float('inf'), dim=1)))
-    
-        # l2_count += images.shape[0]
-
-        print(l2)
-        print(linf)
-        # print("L2 max:", l2_max)
-        # print("Linf max:", linf_max)
-
-        outputs = model(adv_images)
-        _, preds = torch.max(outputs, 1)
-        # correct += torch.sum(preds == labels.data).detach().cpu()
-
-        # delete variables to save memory
-        del images, labels, outputs, preds
-
-        # TODO: delete
-        # print(correct)
-        break
-        # if l2_count >= 1024:
-        #     break
-
-    # test_acc = correct.double() / len(test_loader.dataset)
-    # print(f'Test Accuracy on {args.attack_method}: {test_acc}')
-    # return correct.double(), l2_max, linf_max #TODO test_acc
-    return 0, 0, 0
 
 
 if __name__ == "__main__":
@@ -202,11 +139,11 @@ if __name__ == "__main__":
     args = process_args(mode="attack")
     
     args.epsilon = 0.3
-    args.up_samplers = 0
-    args.down_samplers = 0
+    args.up_samplers = 1
+    args.down_samplers = 1
     
     args.attack_method = "cw"
-    args.batch_size = 12
+    args.batch_size = 32
     
     args = post_process_args(args, mode="attack")
 
@@ -216,18 +153,20 @@ if __name__ == "__main__":
     # setup ensemble model
     model = GPEnsemble(args)
 
+    print(evaluate_cw_l2(args, model, model))
+
     # run attack
-    for w in [1e-16, 1e-12, 1e-8, ]:
-        for x in [1e-2]:
-            for y in [10]:
-                for z in [300, 1000]:
-                    # if (w, x, y, z) in res:
-                    #     continue
-                    print("======================= w", w, "x", x, "y", y, "z", z)
-                    args.initial_const = w
-                    correct, l2, linf = evaluate_cw(args, model, x, y, z)
-                    # res[(w, x, y, z)] = (correct, l2, linf)
-                    # write_results(fp, res)
+    # for w in [1e-8]:
+    #     for x in [5e-3]:
+    #         for y in [10]:
+    #             for z in [1000]:
+    #                 # if (w, x, y, z) in res:
+    #                 #     continue
+    #                 print("======================= w", w, "x", x, "y", y, "z", z)
+    #                 args.initial_const = w
+    #                 correct, l2, linf = evaluate_cw(args, model, x, y, z)
+    #                 # res[(w, x, y, z)] = (correct, l2, linf)
+    #                 # write_results(fp, res)
 
 
 

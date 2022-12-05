@@ -53,7 +53,7 @@ def load_data(args, scaling_exp=0, train=True):
     else:
         # select 1000 random samples
         torch.manual_seed(0)
-        indices = torch.randperm(len(dataset))[:1000]
+        indices = torch.randperm(len(dataset))[:500]
         dataset = torch.utils.data.Subset(dataset, indices)
         # create dataloader
         test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, 

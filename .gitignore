@@ -1,10 +1,13 @@
 # Ignore Downloaded Pytorch Data Files
 data/
 trained_models/mnist/*.pth
+!trained_models/mnist/resnet18_2.0*
 trained_models/cifar10/*.pth
+!trained_models/cifar10/resnet18_2.0*
 ens_adv_train/checkpoints
 ens_adv_train/tensorboard
 custom_data/
+*.tar
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
