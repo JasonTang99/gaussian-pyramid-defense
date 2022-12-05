@@ -22,7 +22,7 @@ from cleverhans_fixed.projected_gradient_descent import (
 from cleverhans_fixed.carlini_wagner_l2 import carlini_wagner_l2
 # from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
-def evaluate_attack(args, linear_model, voting_model=None):
+def evaluate_attack(args, linear_model, voting_model=None, denoiser=None):
     """
     Evaluate model on attacked data. Only for baseline, fgsm, pgd attacks.
 
@@ -35,6 +35,10 @@ def evaluate_attack(args, linear_model, voting_model=None):
     linear_model.eval()
     if voting_model is not None:
         voting_model.eval()
+
+    if denoiser is not None:
+        denoiser.eval()
+
     linear_correct, voting_correct = 0.0, 0.0
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
@@ -67,6 +71,9 @@ def evaluate_attack(args, linear_model, voting_model=None):
             raise ValueError(f'Invalid attack method: {args.attack_method}')
 
         with torch.no_grad():
+            if denoiser is not None: #add a denoiser
+                images = denoiser(images)
+
             linear_out = linear_model(images)
             _, linear_preds = torch.max(linear_out, 1)
             linear_correct += torch.sum(linear_preds == labels).detach().cpu()
@@ -81,7 +88,7 @@ def evaluate_attack(args, linear_model, voting_model=None):
 
     return linear_acc, voting_acc
 
-def evaluate_cw_l2(args, linear_model, voting_model=None, epsilons=[0.5, 1.0, 2.0, 3.5]):
+def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None, epsilons=[0.5, 1.0, 2.0, 3.5]):
     """
     Evaluate model on attacked data for C&W attacks. 
     
@@ -99,6 +106,9 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, epsilons=[0.5, 1.0, 2.
     linear_model.eval()
     if voting_model is not None:
         voting_model.eval()
+
+    if denoiser is not None:
+        denoiser.eval()
     
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
@@ -118,6 +128,9 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, epsilons=[0.5, 1.0, 2.
 
         # Check which adversarial examples were successfully found
         with torch.no_grad():
+            if denoiser is not None: #add a denoiser
+                images = denoiser(images)
+                
             linear_out = linear_model(adv_images)
             _, linear_preds = torch.max(linear_out, 1)
             if voting_model is not None:
