@@ -5,25 +5,15 @@ import numpy as np
 from tqdm import tqdm
 import os
 import argparse
-from skimage.metrics import peak_signal_noise_ratio as PSNR
-from skimage.metrics import structural_similarity as SSIM
 
 from models.denoisers import DnCNN, REDNet20, REDNet10, DAE
 from custom_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
+from skimage.metrics import peak_signal_noise_ratio as PSNR
+from skimage.metrics import structural_similarity as SSIM
 from utils import create_resnet
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-# def add_noise(x, mode, noise_level):
-#     if mode == 'gaussian':
-#         noisy = x + torch.randn_like(x) * noise_level
-#     elif mode == 'fgsm':
-#         noisy = fast_gradient_method(net, x, eps=noise_level, norm=np.inf)
-#     elif mode == 'pgd':
-#         noisy = projected_gradient_descent(net, x, eps=noise_level, eps_iter=0.01, nb_iter=20, norm=np.inf)
-#     else: pass
-#     return noisy
 
 def add_gaussian_noise(x, noise_level):
     noisy = x + torch.randn_like(x) * noise_level
@@ -34,7 +24,7 @@ def calc_psnr(x, gt):
     return out
 
 def show_batch(images, noisy, denoised, n=6):
-    plt.figure(figsize=(20, 6))
+    plt.figure(figsize=(20, 10), dpi=500)
 
     for i in range(n):
         # display original
@@ -65,28 +55,24 @@ def show_batch(images, noisy, denoised, n=6):
     plt.show()
 
 
-def evaluate_model(model, data_loader, mode, test=False, show=False):
+def evaluate_model(model, data_loader, test=False, show=False):
     if test: model.eval()
 
     avg_psnr=0
     avg_ssim=0
     total=0
-    for images, labels in tqdm(data_loader):
-        images, labels = images.to(device), labels.to(device)
-        # if mode == "gaussian":
-        #     noisy = add_gaussian_noise(images, noise_level=0.1)
-        # else:
-        #     noisy = labels
-        noisy = labels
-        #noisy = add_noise(images, mode, noise_level)
-        output = model(noisy)
-        for i in range(len(images)):
-            original = img_to_numpy(images[i])
-            denoised = img_to_numpy(output[i])
-            avg_psnr += PSNR(original, denoised)
-            avg_ssim += SSIM(original, denoised, multichannel=True)
+    with torch.no_grad():
+        for images, labels in tqdm(data_loader):
+            images, labels = images.to(device), labels.to(device)
+            noisy = labels
+            output = model(noisy)
+            for i in range(len(images)):
+                original = img_to_numpy(images[i])
+                denoised = img_to_numpy(output[i])
+                avg_psnr += PSNR(original, denoised)
+                avg_ssim += SSIM(original, denoised, multichannel=True)
 
-        total += len(images)
+            total += len(images)
     
     if show: show_batch(images, noisy, output, n=10)
 
@@ -164,6 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate.')
     parser.add_argument('--use_scheduler', action='store_true', help='scheduler')
+    parser.add_argument('--add_gaussian', action='store_true', help='')
 
     args = parser.parse_args()
 
@@ -174,16 +161,14 @@ if __name__ == '__main__':
         args.train_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_train.pt"
         args.test_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_test.pt"
 
-    # if args.adv_mode == "gaussian":
-    #     train_loader, test_loader = get_dataloader(args, val=False)
-    # else: 
-    # get data from pre-generated adversarial examples
-    train_data = AdversarialDataset(args, train=True, mixed=(True if args.adv_mode == 'mixed' else False))
-    test_data = AdversarialDataset(args, train=False, mixed=(True if args.adv_mode == 'mixed' else False))
+    # load dataset
+    train_data = AdversarialDataset(args, train=True, mixed=(args.adv_mode == 'mixed'), add_gaussian=(args.add_gaussian))
+    test_data = AdversarialDataset(args, train=False, mixed=(args.adv_mode == 'mixed'), add_gaussian=(args.add_gaussian))
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     test_loader = DataLoader(test_data, batch_size=args.batch_size, shuffle=False)
 
     print("Train Size: ", len(train_loader.dataset))
+    print("Test Size: ", len(test_loader.dataset))
 
     # denoiser model
     if args.arch == 'dncnn':
@@ -192,10 +177,11 @@ if __name__ == '__main__':
         model = REDNet20(in_channels=3, out_channels=3, num_features=64, use_bias=False).to(device)
         #model = DAE().to(device)
    
-    model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}.pth"
+    if args.add_gaussian: model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}+gaussian.pth"
+    else: model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}.pth"
     
     # classification model
-    net = create_resnet(device=device)
+    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
 
@@ -219,4 +205,4 @@ if __name__ == '__main__':
         torch.save(model.state_dict(), os.path.join("trained_denoisers", model_name))
 
     # eval
-    evaluate_model(model, test_loader, args.adv_mode, test=True, show=False)
+    evaluate_model(model, test_loader, test=True, show=False)

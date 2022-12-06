@@ -11,6 +11,8 @@ from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,
 )
+from skimage.metrics import peak_signal_noise_ratio as PSNR
+from skimage.metrics import structural_similarity as SSIM
 from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 from train_denoiser import img_to_numpy
 from utils import create_resnet
@@ -18,18 +20,63 @@ from utils import create_resnet
 # use GPU if available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def show_batch(org, adv, denoised, n=6):
-    plt.figure(figsize=(20, 6))
+def generate_attack(images, model, attack, norm, eps):
+    if attack == 'fgsm':
+        x_adv = fast_gradient_method(
+            model_fn=model,
+            x=images,
+            eps=eps,
+            norm=norm,
+            clip_min=0.0,
+            clip_max=1.0,
+        )
+    elif attack == 'pgd':
+        x_adv = projected_gradient_descent(
+            model_fn=model,
+            x=images,
+            eps=eps,
+            eps_iter=5e-4,
+            nb_iter=40,
+            norm=norm,
+            clip_min=0.0,
+            clip_max=1.0,
+            sanity_checks=False
+        )
+    elif attack == 'cw':
+        x_adv = carlini_wagner_l2(
+            model_fn=model,
+            x=images,
+            n_classes=10,
+            lr=5e-3,
+            binary_search_steps=5,
+            max_iterations=100,
+            initial_const=1e-3
+        )
+    else: x_adv = images
+
+    return x_adv
+
+def show_random_batch(model, denoiser, test_loader, attack, norm, eps, n=6):
+    denoiser.eval()
+    images, _ = next(iter(test_loader))
+    # original
+    images = images.to(device)
+    # adversarial
+    x_adv = generate_attack(images, model, attack, norm, eps)
+    # denoised
+    denoised = denoiser(x_adv)
+
+    plt.figure(figsize=(20, 10), dpi=500)
     for i in range(n):
         # display original
         ax = plt.subplot(3, n, i+1)
-        plt.imshow(img_to_numpy(org[i]))
+        plt.imshow(img_to_numpy(images[i]))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
         
         # display noisy
         ax = plt.subplot(3, n, i+1 + n)
-        img = img_to_numpy(adv[i])
+        img = img_to_numpy(x_adv[i])
         plt.imshow(img)
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
@@ -41,94 +88,82 @@ def show_batch(org, adv, denoised, n=6):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-    plt.figtext(0.5,0.95, "ORIGINAL IMAGES", ha="center", va="top", fontsize=14, color="r")
-    plt.figtext(0.5,0.65, "ADV IMAGES", ha="center", va="top", fontsize=14, color="r")
-    plt.figtext(0.5,0.35, "DENOISED IMAGES", ha="center", va="top", fontsize=14, color="b")
+    plt.figtext(0.5,0.95, "Original Images", ha="center", va="top", fontsize=16, color="b")
+    plt.figtext(0.5,0.65, "Adversarial Images", ha="center", va="top", fontsize=16, color="r")
+    plt.figtext(0.5,0.35, "Denoised Images", ha="center", va="top", fontsize=16, color="g")
     plt.subplots_adjust(hspace = 0.5)    
+    plt.tight_layout()
     plt.show()
 
-def test_acc(model, denoiser, test_loader, attack, norm, eps, show=False, denoiser2=None):
+def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
+    denoiser.eval()
+    avg_psnr=0
+    avg_ssim=0
+    total=0
+    
+    for images, _ in tqdm(test_loader):
+        images = images.to(device)
+        x_adv = generate_attack(images, model, attack, norm, eps)
+
+        with torch.no_grad():
+            output = denoiser(x_adv)
+
+            for i in range(len(images)):
+                original = img_to_numpy(images[i])
+                denoised = img_to_numpy(output[i])
+                avg_psnr += PSNR(original, denoised)
+                avg_ssim += SSIM(original, denoised, multichannel=True)
+
+            total += len(images)
+
+    print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr/total, avg_ssim/total))
+
+def test_acc(model, denoisers, test_loader, attack, norm, eps):
+    #resnet model
     model.eval()
-    accuracy1 = 0.0
-    accuracy2 = 0.0
-    accuracy3 = 0.0
-    accuracy4 = 0.0
+    #denoisers to test
+    for denoiser in denoisers: denoiser.eval()
+
+    n = 2 + len(denoisers) 
+    acc_list = np.zeros((n))
     total = 0.0
     
-    # with torch.no_grad():
     for images, labels in tqdm(test_loader):
         images, labels = images.to(device), labels.to(device)
+        # generate attack
+        x_adv = generate_attack(images, model, attack, norm, eps)
         
-        if attack == 'fgsm':
-            x_adv = fast_gradient_method(
-                model_fn=model,
-                x=images,
-                eps=eps,
-                norm=norm,
-                clip_min=0.0,
-                clip_max=1.0,
-            )
-        elif attack == 'pgd':
-            x_adv = projected_gradient_descent(
-                model_fn=model,
-                x=images,
-                eps=eps,
-                eps_iter=5e-4,
-                nb_iter=40,
-                norm=norm,
-                clip_min=0.0,
-                clip_max=1.0,
-                sanity_checks=False
-            )
-        elif attack == 'cw':
-            x_adv = carlini_wagner_l2(
-                model_fn=model,
-                x=images,
-                n_classes=10,
-                lr=5e-3,
-                binary_search_steps=5,
-                max_iterations=100,
-                initial_const=1e-3
-            )
-        else: x_adv = images
-
-        # baseline
-        outputs = model(images)
-        # attack
-        adv_outputs = model(x_adv)
-        # attack denoised
-        denoised = denoiser(x_adv)
-        denoised_outputs = model(denoised)
-
-        _, pred = torch.max(outputs, 1)
-        _, pred_adv = torch.max(adv_outputs, 1)
-        _, pred_dn = torch.max(denoised_outputs, 1)
-
         total += labels.size(0)
-        accuracy1 += (pred == labels).sum().item()
-        accuracy2 += (pred_adv == labels).sum().item()
-        accuracy3 += (pred_dn == labels).sum().item()
 
-        if denoiser2: # second denoiser
-            denoised2 = denoiser2(x_adv)
-            denoised2_outputs = model(denoised2)
-            _, pred_dn2 = torch.max(denoised2_outputs, 1)
-            accuracy4 += (pred_dn2 == labels).sum().item()
+        with torch.no_grad():
+            # baseline
+            outputs = model(images)
+            # attack
+            adv_outputs = model(x_adv)
 
-    
-    if show or attack == 'cw': show_batch(images, x_adv, denoised, n=10)
+            _, pred = torch.max(outputs, 1)
+            _, pred_adv = torch.max(adv_outputs, 1)
+
+            acc_list[0] += (pred == labels).sum().item()
+            acc_list[1] += (pred_adv == labels).sum().item()
+
+            #denoisers
+            for i, denoiser in enumerate(denoisers):
+                denoised = denoiser(x_adv)
+                denoised_outputs = model(denoised)
+                _, pred_dn = torch.max(denoised_outputs, 1)
+                acc_list[i+2] += (pred_dn == labels).sum().item()
+
+    # if show or attack == 'cw': show_batch(images, x_adv, denoised, n=10)
 
     # compute the accuracy over all test images
-    accuracy1 = (accuracy1 / total)
-    accuracy2 = (accuracy2 / total)
-    accuracy3 = (accuracy3 / total)
-    accuracy4 = (accuracy4 / total)
-    print("Test Accuracy no attack: {}".format(accuracy1))
-    print("Test Accuracy with {} attack: {}".format(attack, accuracy2))
-    print("Test Accuracy with {} attack + denoiser1: {}".format(attack, accuracy3))
-    print("Test Accuracy with {} attack + denoiser2: {}".format(attack, accuracy4))
+    acc_list = (acc_list / total)
+    print("Test Accuracy no attack: {}".format(acc_list[0]))
+    print("Test Accuracy with {} attack: {}".format(attack, acc_list[1]))
+    for i in range(len(denoisers)):
+        print("Test Accuracy with {} attack + denoiser{}: {}".format(attack, i+1, acc_list[i+2]))
 
-    return accuracy1, accuracy2, accuracy3, accuracy4
+    return acc_list
 
 
 if __name__ == '__main__':
@@ -141,22 +176,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
     parser.add_argument('--arch', type=str, default='dncnn', help='Dataset to train on. One of [dncnn, dae1, dae2].')
-    parser.add_argument('--denoiser', type=str, default='gaussian', help='')
+    parser.add_argument('--denoiser', type=str, default='mixed+gaussian', help='')
     parser.add_argument('--adv_mode', type=str, default='fgsm', help='type of adversarial noise')
     parser.add_argument('--eps', type=float, default=16/256, help='perturbation level')
     parser.add_argument('--norm', type=str, default='inf', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
-
-    # pgd attack parameters
-    parser.add_argument('--nb_iter', type=int, default=40, help='Number of steps for PGD attack. Usually 40 or 100.')
-    parser.add_argument('--eps_iter', type=float, default=0.01, help='Step size for PGD attack.')
-    parser.add_argument('--rand_init', type=bool, default=False, help='Whether to use random initialization for PGD attack.')
-    # # cw attack parameters
-    # parser.add_argument('--confidence', type=float, default=0, help='Confidence for CW attack.')
     args = parser.parse_args()
 
     # load data
-    _, test_loader = get_dataloader(args.dataset, args.batch_size, sample_test=True)
+    _, test_loader = get_dataloader(args.dataset, args.batch_size, sample_test=False)
 
     # denoiser model
     if args.arch == 'dncnn':
@@ -173,7 +201,6 @@ if __name__ == '__main__':
     net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
-
     if args.norm == 'inf':
         args.norm = np.inf
     elif args.norm == '1' or args.norm == '2':
@@ -188,4 +215,5 @@ if __name__ == '__main__':
     print(f"eps: {args.eps}")
     print(f"norm: {args.norm}")
     print("=======================================================")
-    test_acc(net, denoiser, test_loader, eps=args.eps, norm=args.norm, attack=args.adv_mode)
+    denoisers = [denoiser]
+    test_acc(net, denoisers, test_loader, attack=args.adv_mode, eps=args.eps, norm=args.norm)
