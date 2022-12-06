@@ -48,10 +48,13 @@ def generate_attack(images, model, attack, norm, eps):
             x=images,
             n_classes=10,
             lr=5e-3,
-            binary_search_steps=5,
+            binary_search_steps=10,
             max_iterations=100,
             initial_const=1e-3
         )
+        l2_norm = torch.norm((images - x_adv).view(images.shape[0], -1), p=2, dim=1)
+        if l2_norm > eps: x_adv = images
+
     else: x_adv = images
 
     return x_adv
