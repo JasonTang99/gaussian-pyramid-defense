@@ -300,7 +300,7 @@ def run_cw(
 
             # Run attack
             linear_acc, voting_acc = evaluate_cw_l2(linear_args, 
-                linear_model, voting_model, epsilons=epsilons)
+                linear_model, voting_model, denoiser, epsilons=epsilons)
 
             for epsilon, lacc, vacc in zip(epsilons, linear_acc, voting_acc):
                 linear_attack_id = linear_model_id + "_{}_{}_{}".format(
