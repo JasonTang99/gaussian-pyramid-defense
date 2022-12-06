@@ -56,7 +56,7 @@ def generate_attack(images, model, attack, norm, eps):
 
     return x_adv
 
-def show_random_batch(model, denoiser, test_loader, attack, norm, eps, n=6):
+def show_random_batch(model, denoiser, test_loader, attack, norm, eps, n=5, eval=False):
     denoiser.eval()
     images, _ = next(iter(test_loader))
     # original
@@ -66,7 +66,7 @@ def show_random_batch(model, denoiser, test_loader, attack, norm, eps, n=6):
     # denoised
     denoised = denoiser(x_adv)
 
-    plt.figure(figsize=(20, 10), dpi=500)
+    plt.figure(figsize=(10, 9), dpi=500)
     for i in range(n):
         # display original
         ax = plt.subplot(3, n, i+1)
@@ -88,15 +88,21 @@ def show_random_batch(model, denoiser, test_loader, attack, norm, eps, n=6):
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-    plt.figtext(0.5,0.95, "Original Images", ha="center", va="top", fontsize=16, color="b")
-    plt.figtext(0.5,0.65, "Adversarial Images", ha="center", va="top", fontsize=16, color="r")
-    plt.figtext(0.5,0.35, "Denoised Images", ha="center", va="top", fontsize=16, color="g")
-    plt.subplots_adjust(hspace = 0.5)    
+    plt.figtext(0.5,0.95, "Original Images", ha="center", va="top", fontsize=20, color="b")
+    plt.figtext(0.5,0.65, f"Adversarial Images ({attack})", ha="center", va="top", fontsize=20, color="r")
+    plt.figtext(0.5,0.33, "Denoised Images", ha="center", va="top", fontsize=20, color="g")
+    if eval:
+        avg_psnr_bl, avg_ssim_bl, avg_psnr, avg_ssim, total = evaluate_metrics(model, denoiser, test_loader, attack, norm, eps)
+        plt.figtext(0.5,0.38, "PSNR: {:.3f}dB, SSIM: {:.3f} (averaged over {} images)".format(avg_psnr_bl, avg_ssim_bl, total), ha="center", va="top", fontsize=20)
+        plt.figtext(0.5,0.08, "PSNR: {:.3f}dB, SSIM: {:.3f} (averaged over {} images)".format(avg_psnr, avg_ssim, total), ha="center", va="top", fontsize=20)
+    plt.subplots_adjust(hspace = 0.1)    
     plt.tight_layout()
     plt.show()
 
 def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
     denoiser.eval()
+    avg_psnr_bl=0
+    avg_ssim_bl=0
     avg_psnr=0
     avg_ssim=0
     total=0
@@ -110,13 +116,21 @@ def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
 
             for i in range(len(images)):
                 original = img_to_numpy(images[i])
+                adv = img_to_numpy(x_adv[i])
                 denoised = img_to_numpy(output[i])
+                avg_psnr_bl += PSNR(original, adv)
+                avg_ssim_bl += SSIM(original, adv, multichannel=True)
                 avg_psnr += PSNR(original, denoised)
                 avg_ssim += SSIM(original, denoised, multichannel=True)
 
             total += len(images)
+    avg_psnr_bl /= total      
+    avg_ssim_bl /= total  
+    avg_psnr /= total
+    avg_ssim /= total
+    print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr, avg_ssim))
 
-    print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr/total, avg_ssim/total))
+    return avg_psnr_bl, avg_ssim_bl, avg_psnr, avg_ssim, total
 
 def test_acc(model, denoisers, test_loader, attack, norm, eps):
     #resnet model
