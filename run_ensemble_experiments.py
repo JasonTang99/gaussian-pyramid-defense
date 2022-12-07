@@ -351,35 +351,39 @@ def experiment_fgsm():
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
 
-    for scaling in [2.0, 1.1]:
-        for dataset in ["mnist", "cifar10"]:
-            if scaling == 2.0:
-                up_down_pairs = [
-                    *[(0, i) for i in range(0, 4)],
-                    *[(i, 0) for i in range(1, 4)],
-                    *[(i, i) for i in [0, 1, 2, 3]]
-                ]
-            else:
-                up_down_pairs = [
-                    *[(0, i) for i in [3, 5, 7]],
-                    *[(i, 0) for i in [3, 5, 7]],
-                    *[(i, i) for i in [3, 5, 7]],
-                ]
+    scalings, datasets, denoisers = [1.1, 2.0], ["mnist", "cifar10"], [True, False]
 
-            print("Running FGSM attack on {} {} {}".format(dataset, scaling, norm))
-            
-            attack_results = run(
-                attack_type="fgsm",
-                dataset=dataset,
-                scaling_factor=scaling,
-                batch_size=64,
-                up_down_pairs=up_down_pairs,
-                interpolations=interpolations,
-                voting_methods=voting_methods,
-                norms=[norm],
-                epsilons=epsilons,
-                verbose=True,
-            )
+    for scaling, dataset, denoiser in itertools.product(scalings, datasets, denoisers):
+        if scaling == 2.0:
+            up_down_pairs = [
+                *[(0, i) for i in range(0, 4)],
+                *[(i, 0) for i in range(1, 4)],
+                *[(i, i) for i in [0, 1, 2, 3]]
+            ]
+        else:
+            up_down_pairs = [
+                *[(0, i) for i in [3, 5, 7]],
+                *[(i, 0) for i in [3, 5, 7]],
+                *[(i, i) for i in [3, 5, 7]],
+            ]
+
+        print("Running FGSM attack on {} {} {}".format(dataset, scaling, norm))
+        if denoiser:
+            print("Using DnCNN denoiser")
+        
+        attack_results = run(
+            attack_type="fgsm",
+            dataset=dataset,
+            scaling_factor=scaling,
+            batch_size=64,
+            up_down_pairs=up_down_pairs,
+            interpolations=interpolations,
+            voting_methods=voting_methods,
+            norms=[norm],
+            epsilons=epsilons,
+            verbose=True,
+            denoiser=denoiser
+        )
 
 def experiment_pgd():
     # run PGD attack (Linf)
@@ -391,19 +395,17 @@ def experiment_pgd():
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
     
-    scalings, datasets = [2.0, 1.1], ["mnist", "cifar10"]
+    scalings, datasets, denoisers = [1.1, 2.0], ["mnist", "cifar10"], [True, False]
 
-    for scaling, dataset in itertools.product(scalings, datasets):    
+    for scaling, dataset, denoiser in itertools.product(scalings, datasets, denoisers):
         if scaling == 2.0:
-            up_down_pairs = [
-                *[(i, i) for i in [0, 3]]
-            ]
+            up_down_pairs = [(i, i) for i in [0, 3]]
         else:
-            up_down_pairs = [
-                *[(i, i) for i in [3, 5, 7]],
-            ]
+            up_down_pairs = [(i, i) for i in [3, 5, 7]]
 
         print("Running PGD attack on {} {} {}".format(dataset, scaling, norm))
+        if denoiser:
+            print("Using DnCNN denoiser")
 
         attack_results = run(
             attack_type="pgd",
@@ -418,7 +420,8 @@ def experiment_pgd():
             eps_iters=eps_iters,
             nb_iters=nb_iters,
             rand_inits=rand_inits,
-            verbose=False
+            verbose=False,
+            denoiser=denoiser,
         )
 
 def experiment_cw():
@@ -428,28 +431,27 @@ def experiment_cw():
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
     
-    scalings, datasets = [1.1, 2.0], ["mnist", "cifar10"]
+    scalings, datasets, denoisers = [1.1, 2.0], ["mnist", "cifar10"], [True, False]
 
-    for scaling, dataset in itertools.product(scalings, datasets):    
+    for scaling, dataset, denoiser in itertools.product(scalings, datasets, denoisers):    
         if scaling == 2.0:
-            up_down_pairs = [
-                *[(i, i) for i in [0, 3]]
-            ]
+            up_down_pairs = [(i, i) for i in [0, 3]]
         else:
-            up_down_pairs = [
-                *[(i, i) for i in [5, 7]],
-            ]
+            up_down_pairs = [(i, i) for i in [5, 7]]
 
         print("Running CW attack on {} {} {}".format(dataset, scaling, norm))
-
+        if denoiser:
+            print("Using DnCNN denoiser")
+            
         attack_results = run_cw(
             dataset=dataset,
             scaling_factor=scaling,
-            batch_size=64,
+            batch_size=32,
             up_down_pairs=up_down_pairs,
             voting_methods=voting_methods,
             epsilons=epsilons,
-            verbose=False
+            verbose=False,
+            denoiser=denoiser
         )
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# The command we used to learn the advens model
 python main_ens_adv_train.py \
     --eps 0.0625 \
     --attacker 'fgsm' \

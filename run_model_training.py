@@ -3,6 +3,11 @@ import os
 import random
 
 def run(mode="gp"):
+    """
+    Train the individual CNNs for our GPEnsemble models.
+
+    Also trains baseline models for Ensemble Adversarial Training.
+    """
     ### Code to train GPEnsemble ###
     if mode == "gp":
         for dataset in ['mnist', 'cifar10']:

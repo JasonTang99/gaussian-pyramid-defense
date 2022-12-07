@@ -52,6 +52,9 @@ def run(model,
     model.eval()
     model.to(device)
 
+    # Normalize data if using FastAdversarial
+    normalize = model_name == "fastadv"
+
     # Generate attack args
     args = process_args(mode="attack")
     args.attack_method = attack_type
@@ -82,7 +85,7 @@ def run(model,
             continue
         
         # Run attack
-        test_acc, _ = evaluate_attack(args, model)
+        test_acc, _ = evaluate_attack(args, model, normalize=normalize)
 
         # Save results
         results[attack_id] = (
@@ -94,12 +97,17 @@ def run(model,
         write_results(results_path, results, dictionary=True, overwrite=True)
 
 def run_cw(
+        model,
+        model_name,
         dataset,
         batch_size,
         epsilons,
         initial_consts=[1e-8],   # cw only
         verbose=True
     ):
+    """
+    Run CW attack. Similar to run but with different attack processing.
+    """
     attack_type = "cw"
     norms = [2.0]
 
@@ -110,10 +118,12 @@ def run_cw(
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
     
-    # defining the model
-    model = load_advens_model()
+    # Eval mode
     model.eval()
     model.to(device)
+
+    # Normalize data if using FastAdversarial
+    normalize = model_name == "fastadv"
 
     # Generate attack args
     args = process_args(mode="attack")
@@ -142,7 +152,7 @@ def run_cw(
             continue
         
         # Run attack
-        test_acc, _ = evaluate_cw_l2(args, model, epsilons=epsilons)
+        test_acc, _ = evaluate_cw_l2(args, model, epsilons=epsilons, normalize=normalize)
 
         for epsilon, lacc in zip(epsilons, test_acc):
             attack_id = general_attack_id + "_{}_{}_{}".format(
@@ -162,14 +172,18 @@ def experiment_fgsm():
     epsilons = [x/256 for x in [2, 5, 10, 16]]
     advens_model = load_advens_model()
     fastadv_model = load_fastadv_model()
-    
-    attack_results = run(
-        attack_type="fgsm",
-        dataset="cifar10",
-        batch_size=64,
-        norms=[norm],
-        epsilons=epsilons,
-    )
+
+    for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
+        # run FGSM attack
+        attack_results = run(
+            model=model,
+            model_name=model_name,
+            attack_type="fgsm",
+            dataset="cifar10",
+            batch_size=64,
+            norms=[norm],
+            epsilons=epsilons,
+        )
 
 def experiment_pgd():
     # run PGD attack (Linf)
@@ -179,27 +193,41 @@ def experiment_pgd():
     epsilons = [x/256 for x in [2, 5, 10, 16]]
     eps_iters = [5e-4]
     
-    attack_results = run(
-        attack_type="pgd",
-        dataset="cifar10",
-        batch_size=64,
-        norms=[norm],
-        epsilons=epsilons,
-        eps_iters=eps_iters,
-        nb_iters=nb_iters,
-        rand_inits=rand_inits,
-    )
+    advens_model = load_advens_model()
+    fastadv_model = load_fastadv_model()
+
+    for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
+        # run PGD attack
+        attack_results = run(
+            model=model,
+            model_name=model_name,
+            attack_type="pgd",
+            dataset="cifar10",
+            batch_size=64,
+            norms=[norm],
+            epsilons=epsilons,
+            eps_iters=eps_iters,
+            nb_iters=nb_iters,
+            rand_inits=rand_inits,
+        )
 
 def experiment_cw():
     # run CW attack (L2)
     norm = 2.0
     epsilons = [0.5, 1.0, 2.0, 3.5]
-    
-    attack_results = run_cw(
-        dataset="cifar10",
-        batch_size=64,
-        epsilons=epsilons,
-    )
+
+    advens_model = load_advens_model()
+    fastadv_model = load_fastadv_model()
+
+    for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
+        # run PGD attack
+        attack_results = run_cw(
+            model=model,
+            model_name=model_name,
+            dataset="cifar10",
+            batch_size=64,
+            epsilons=epsilons,
+        )
 
 if __name__ == "__main__":
     torch.manual_seed(0)

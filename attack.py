@@ -93,7 +93,7 @@ def evaluate_attack(args, linear_model, voting_model=None, denoiser=None, normal
     return linear_acc, voting_acc
 
 def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None, 
-        epsilons=[0.5, 1.0, 2.0, 3.5]):
+        epsilons=[0.5, 1.0, 2.0, 3.5], normalize=False):
     """
     Evaluate model on attacked data for CW attacks. 
     
@@ -106,7 +106,7 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None,
     epsilon limits (epsilons) to evaluate.
     """
     # load dataset
-    test_loader = load_data(args, 0, train=False)
+    test_loader = load_data(args, 0, train=False, normalize=normalize)
 
     # create buckets to track adversarial examples within each epsilon limit
     linear_correct = [0 for _ in range(len(epsilons))]

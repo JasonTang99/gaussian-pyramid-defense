@@ -13,6 +13,9 @@ cifar10_std = (0.2471, 0.2435, 0.2616)
 def load_data(args, scaling_exp=0, train=True, normalize=False):
     """
     Load dataset and create dataloaders.
+
+    Applies a scaling transformation to the input images if 
+    scaling_exp is given.
     """
     # setup transform
     if train:

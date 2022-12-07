@@ -90,7 +90,6 @@ def train_one_model(args, model_idx):
 def train_ensemble(args):
     """
     Train ensemble models on a dataset.
-
     """
     # read previous results
     val_accs = {}
@@ -123,5 +122,3 @@ if __name__ == '__main__':
     # train ensemble
     train_ensemble(args)
     print("Finished training ensemble.")
-
-    # exit(0)
