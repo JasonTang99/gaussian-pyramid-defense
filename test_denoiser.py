@@ -48,12 +48,15 @@ def generate_attack(images, model, attack, norm, eps):
             x=images,
             n_classes=10,
             lr=5e-3,
-            binary_search_steps=10,
+            binary_search_steps=5,
             max_iterations=100,
             initial_const=1e-3
         )
         l2_norm = torch.norm((images - x_adv).view(images.shape[0], -1), p=2, dim=1)
-        if l2_norm > eps: x_adv = images
+        indices = (l2_norm > eps)
+        # print(x_adv[indices].size())
+        # ignore images with l2 norm larger than eps
+        x_adv[indices] = images[indices]
 
     else: x_adv = images
 
@@ -171,7 +174,7 @@ def test_acc(model, denoisers, test_loader, attack, norm, eps):
                 _, pred_dn = torch.max(denoised_outputs, 1)
                 acc_list[i+2] += (pred_dn == labels).sum().item()
 
-    # if show or attack == 'cw': show_batch(images, x_adv, denoised, n=10)
+    # if attack == 'cw': show_batch(images, x_adv, denoised, n=10)
 
     # compute the accuracy over all test images
     acc_list = (acc_list / total)

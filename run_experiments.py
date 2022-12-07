@@ -148,7 +148,7 @@ def run(attack_type,
             # Load DnCNN denoiser
             if use_denoiser:
                 denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(linear_args.device)
-                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed.pth')
+                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed+gaussian.pth')
                 denoiser.load_state_dict(torch.load(dn_path, map_location=linear_args.device))
             else:
                 denoiser = None
@@ -293,7 +293,7 @@ def run_cw(
             # Load DnCNN denoiser
             if use_denoiser:
                 denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(linear_args.device)
-                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed.pth')
+                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed+gaussian.pth')
                 denoiser.load_state_dict(torch.load(dn_path, map_location=linear_args.device))
             else:
                 denoiser = None
