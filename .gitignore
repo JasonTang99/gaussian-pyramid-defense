@@ -8,7 +8,7 @@ ens_adv_train/checkpoints
 ens_adv_train/tensorboard
 custom_data/
 trained_models/cifar10/resnet18_2.0+0_BL_junbo.pth
-run_denoiser_training.bat
+run.bat
 *.tar
 
 # Byte-compiled / optimized / DLL files

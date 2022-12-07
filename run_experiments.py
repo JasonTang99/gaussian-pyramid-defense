@@ -148,7 +148,7 @@ def run(attack_type,
             # Load DnCNN denoiser
             if use_denoiser:
                 denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(linear_args.device)
-                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed.pth')
+                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed+gaussian.pth')
                 denoiser.load_state_dict(torch.load(dn_path, map_location=linear_args.device))
             else:
                 denoiser = None
@@ -293,14 +293,14 @@ def run_cw(
             # Load DnCNN denoiser
             if use_denoiser:
                 denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(linear_args.device)
-                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed.pth')
+                dn_path = os.path.join('trained_denoisers', f'dncnn_{dataset}_mixed+gaussian.pth')
                 denoiser.load_state_dict(torch.load(dn_path, map_location=linear_args.device))
             else:
                 denoiser = None
 
             # Run attack
             linear_acc, voting_acc = evaluate_cw_l2(linear_args, 
-                linear_model, voting_model, epsilons=epsilons)
+                linear_model, voting_model, denoiser, epsilons=epsilons)
 
             for epsilon, lacc, vacc in zip(epsilons, linear_acc, voting_acc):
                 linear_attack_id = linear_model_id + "_{}_{}_{}".format(

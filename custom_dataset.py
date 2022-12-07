@@ -21,7 +21,7 @@ from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class AdversarialDataset(Dataset):
-    def __init__(self, args, root='./custom_data', train=True, mixed=False):
+    def __init__(self, args, root='./custom_data', train=True, mixed=True, add_gaussian=False):
         if mixed:
             if train:
                 path0 = os.path.join(root, f"{args.dataset}_train.pt")
@@ -39,9 +39,13 @@ class AdversarialDataset(Dataset):
             gaussian_dataset = torch.load(path1)
             fgsm_datset = torch.load(path2)
             pgd_dataset = torch.load(path3)
-            self.clean = torch.cat([gt, gt, gt], dim=0)
-            self.noisy = torch.cat([gaussian_dataset, fgsm_datset, pgd_dataset], dim=0)
-            print("Loaded Datasets:\n{}\n{}\n{}".format(path1, path2, path3))
+            if add_gaussian:
+                self.clean = torch.cat([gt, gt, gt], dim=0)
+                self.noisy = torch.cat([fgsm_datset, pgd_dataset, gaussian_dataset], dim=0)
+                print("Loaded Datasets:\n{}\n{}\n{}".format(path1, path2, path3))
+            else:
+                self.clean = torch.cat([gt, gt], dim=0)
+                self.noisy = torch.cat([fgsm_datset, pgd_dataset], dim=0)
         else:
             if train:
                 gt = f"{args.dataset}_train.pt"
@@ -119,7 +123,7 @@ def generate_attack(model, images, attack_mode, eps_range, grayscale=False):
             model_fn=model,
             x=images,
             eps=eps_random,
-            eps_iter=0.01,
+            eps_iter=0.005,
             nb_iter=40,
             norm=args.norm,
             clip_min=0.0,
@@ -219,14 +223,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.norm == 'inf':
         if args.dataset == 'mnist':
-            args.eps_range = [8 / 256, 32 / 256]
+            args.eps_range = [4 / 256, 16 / 256]
         elif args.dataset == 'cifar10':
             if args.adv_mode == 'gaussian':
-                args.eps_range = [6 / 256, 16 / 256]
-            elif args.adv_mode == 'fgsm':
-                args.eps_range = [5 / 256, 16 / 256]
+                args.eps_range = [4 / 256, 14 / 256]
             else:
-                args.eps_range = [5 / 256, 16 / 256]
+                args.eps_range = [4 / 256, 16 / 256]
     elif args.norm == '2':
         if args.dataset == 'mnist':
             args.eps_range = [0.1, 0.75]
@@ -257,5 +259,5 @@ if __name__ == '__main__':
     print("=======================================================")
     if not args.peek: generate_adv_examples(args, net)
     else: 
-        ds = AdversarialDataset(args, train=True, mixed=(args.adv_mode == 'mixed'))
+        ds = AdversarialDataset(args, train=False, mixed=(args.adv_mode == 'mixed'))
         test_dataset(args, ds)
