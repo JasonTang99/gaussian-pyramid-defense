@@ -41,14 +41,11 @@ np.random.seed(66)
 ######################################### modify accordingly ##################################################
 # adv models: the static model used to generate adv input images
 # fixed to memory for all the trainings to speed up.
-
+num_models = 8
 adv_models = [
-    create_resnet('resnet18', 10),
-    create_resnet('resnet18', 10),
-    create_resnet('resnet18', 10),
-    create_resnet('resnet18', 10),
+    create_resnet('resnet18', 10) for _ in range(num_models)
 ]
-adv_model_names = [f'baseline_{i}' for i in range(4)]
+adv_model_names = [f'baseline_{i}' for i in range(num_models)]
 
 # models: models for be adv training
 # loaded only on its training to save memory.

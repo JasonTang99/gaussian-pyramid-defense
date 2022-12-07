@@ -361,7 +361,7 @@ def experiment_fgsm():
                 voting_methods=voting_methods,
                 norms=[norm],
                 epsilons=epsilons,
-                verbose=True
+                verbose=True,
             )
 
 def experiment_pgd():

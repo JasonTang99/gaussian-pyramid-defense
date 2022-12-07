@@ -51,7 +51,7 @@ def load_data(args, scaling_exp=0, train=True):
 
         return train_loader, val_loader
     else:
-        # select 1000 random samples
+        # select 500 random samples
         torch.manual_seed(0)
         indices = torch.randperm(len(dataset))[:500]
         dataset = torch.utils.data.Subset(dataset, indices)
