@@ -7,10 +7,10 @@ import os
 import argparse
 
 from models.denoisers import DnCNN, ConvDAE
-from custom_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
+from adversarial_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
 from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
-from utils import create_resnet
+from load_model import load_resnet
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -176,7 +176,11 @@ if __name__ == '__main__':
     # model name to save
     model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}{'+gaussian' if args.add_gaussian else ''}{'_bias' if args.use_bias else ''}.pth"
     
-    # check if model exists
+    # classification model
+    net = load_resnet(device=device, grayscale=(args.dataset == 'mnist'))
+    net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
+
+
     if os.path.exists(os.path.join("trained_denoisers", model_name)):
         print("Model already exists. Skip Training.")
         model.load_state_dict(torch.load(os.path.join("trained_denoisers", model_name), map_location=device))

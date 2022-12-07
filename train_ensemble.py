@@ -9,7 +9,8 @@ import numpy as np
 import os
 from tqdm import tqdm
 
-from utils import create_resnet, read_results, write_results
+from load_model import load_resnet
+from utils import read_results, write_results
 from models.gp_ensemble import GPEnsemble 
 from parse_args import parse_args
 from datasets import load_data
@@ -47,7 +48,7 @@ def train_one_model(args, model_idx):
         model_idx - args.down_samplers, train=True)
 
     # setup model
-    model = create_resnet(
+    model = load_resnet(
         arch=args.archs[model_idx],
         num_classes=args.num_classes,
         device=args.device,

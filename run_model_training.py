@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import random
 
 def run(mode="gp"):
     ### Code to train GPEnsemble ###
@@ -25,11 +26,11 @@ def run(mode="gp"):
     
     ### Code to train baselines ###
     else:
-        epochs_list = list(range(15, 25))
+        epochs_list = list(range(40, 50))
         batch_size_list = [24, 32, 48, 64]
-        lr_list = list(np.arange(0.01, 0.1, 0.01))
-        for dataset in ['mnist', 'cifar10']:
-            for i in range(16):
+        lr_list = list(np.arange(0.005, 0.05, 0.005))
+        for dataset in ['cifar10']:
+            for i in range(9):
                 fp = f"trained_models/{dataset}/baseline_{i}.pth"
                 if os.path.exists(fp):
                     print(f"Already trained {dataset} baseline {i}, skipping")
