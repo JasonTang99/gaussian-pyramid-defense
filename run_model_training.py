@@ -55,5 +55,5 @@ def run(mode="gp"):
                 print(f"epochs: {epochs}, batch_size: {batch_size}, lr: {lr}")
 
 if __name__ == "__main__":
-    # run(mode="gp")
+    run(mode="gp")
     run(mode="baseline")

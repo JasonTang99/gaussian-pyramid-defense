@@ -1,4 +1,4 @@
-from load_ens_adv_train import get_ens_adv_model
+from load_model import load_advens_model
 from datasets import load_data
 from parse_args import process_args, post_process_args
 from models.gp_ensemble import GPEnsemble
@@ -10,7 +10,7 @@ from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,
 )
-from cleverhans_fixed.carlini_wagner_l2 import carlini_wagner_l2
+from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
 cifar10_classes = [
     "airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     gp_model.eval()
 
     # load model
-    advens_model = get_ens_adv_model()
+    advens_model = load_advens_model()
     advens_model.eval()
 
     # to args.device
@@ -153,5 +153,5 @@ if __name__ == "__main__":
     plt.margins(0,0)
     plt.gca().set_axis_off()
     plt.tight_layout()
-    plt.savefig("cifar10_attack.png", bbox_inches='tight')
+    plt.savefig("graphs/cifar10_attack.png", bbox_inches='tight')
     plt.show()

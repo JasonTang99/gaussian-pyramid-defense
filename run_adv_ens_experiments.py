@@ -10,7 +10,7 @@ from parse_args import process_args, post_process_args
 from attack import evaluate_attack, evaluate_cw_l2
 from models.gp_ensemble import GPEnsemble
 from utils import read_results, write_results
-from load_ens_adv_train import get_ens_adv_model
+from load_model import load_advens_model
 
 from tqdm import tqdm
 
@@ -32,7 +32,7 @@ def run(attack_type,
         print(f"Loaded {len(results)} results")
     
     # defining the model
-    model = get_ens_adv_model()
+    model = load_advens_model()
     model.eval()
     model.cuda()
 
@@ -96,7 +96,7 @@ def run_cw(
         print(f"Loaded {len(results)} results")
     
     # defining the model
-    model = get_ens_adv_model()
+    model = load_advens_model()
     model.eval()
     model.cuda()
 

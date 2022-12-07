@@ -14,9 +14,13 @@ import random
 from models.gp_ensemble import GPEnsemble
 from models.resnet import MyResNet18
 from parse_args import *
-from load_ens_adv_train import get_ens_adv_model
+from load_model import load_advens_model, load_resnet
+from comparison_defenses.fast_adversarial.preact_resnet import PreActResNet18
 
-def evaluate_on(model, dataset='mnist', in_size=None):
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
+
+def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
     model.cuda()
 
     if dataset == 'mnist':
@@ -28,9 +32,15 @@ def evaluate_on(model, dataset='mnist', in_size=None):
         if in_size is None:
             in_size = 28
     else:
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+        if not normalize:
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+            ])
+        else:
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(cifar10_mean, cifar10_std)
+            ])
         train_data = CIFAR10(root='data', train=False, download=True, transform=transform)
         if in_size is None:
             in_size = 32
@@ -54,9 +64,15 @@ def evaluate_on(model, dataset='mnist', in_size=None):
 
     print("Accuracy: {}".format(correct / len(train_data)))
 
+model_test = PreActResNet18().cuda()
+model_test.load_state_dict(torch.load("trained_models/comparison/cifar_model_weights_30_epochs.pth"))
+model_test.float()
+model_test.eval()
+evaluate_on(model_test, dataset='cifar10', in_size=32, normalize=True)
 
+exit(0)
 
-# model = create_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
+# model = load_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
 # # model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
 # model.load_state_dict(torch.load("trained_models/cifar10/resnet18_1.1+0_BL.pth"))
 # evaluate_on(model, dataset='cifar10')
@@ -64,7 +80,7 @@ def evaluate_on(model, dataset='mnist', in_size=None):
 # exit(0)
 
 
-model = get_ens_adv_model()
+model = load_advens_model()
 evaluate_on(model, dataset='cifar10')
 exit(0)
 
@@ -182,7 +198,7 @@ fp = "cw_results"
 
 
 # Loading and using model
-model = create_resnet(device="cuda", num_classes=10, arch="resnet18")
+model = load_resnet(device="cuda", num_classes=10, arch="resnet18")
 model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
 model.eval()
 model = model.cuda()

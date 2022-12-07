@@ -10,7 +10,7 @@ from torchvision.transforms import InterpolationMode
 import os
 from tqdm import tqdm
 
-from utils import create_resnet, calc_resize_shape, read_results, write_results
+from utils import read_results, write_results
 from models.gp_ensemble import GPEnsemble 
 from parse_args import parse_args, post_process_args, process_args
 from datasets import load_data
@@ -19,8 +19,7 @@ from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,
 )
-from cleverhans_fixed.carlini_wagner_l2 import carlini_wagner_l2
-# from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
+from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
 def evaluate_attack(args, linear_model, voting_model=None, denoiser=None):
     """
@@ -119,7 +118,7 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None, epsilon
             n_classes=args.num_classes,
             lr=5e-3,
             binary_search_steps=10,
-            max_iterations=100,
+            max_iterations=150,
             initial_const=args.initial_const,
         )
 

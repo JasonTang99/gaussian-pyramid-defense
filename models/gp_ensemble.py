@@ -4,7 +4,8 @@ import torch.nn.functional as F
 from torchvision import transforms, models
 import os
 
-from utils import create_resnet, calc_resize_shape, read_results, write_results
+from load_model import load_resnet
+from utils import calc_resize_shape, read_results, write_results
 
 class GPEnsemble(nn.Module):
     """
@@ -49,7 +50,7 @@ class GPEnsemble(nn.Module):
         # Initialize models
         self.models = []
         for arch, model_path in zip(self.archs, self.model_paths):
-            model = create_resnet(arch, self.num_classes, self.device, 
+            model = load_resnet(arch, self.num_classes, self.device, 
                 grayscale=self.grayscale)
             model.load_state_dict(torch.load(
                 model_path, map_location=self.device))

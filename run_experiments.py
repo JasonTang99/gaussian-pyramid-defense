@@ -257,6 +257,7 @@ def run_cw(
             args.down_samplers = down_samplers
             args.interpolation = interpolation
             args.archs = ['resnet18']
+            args.batch_size = batch_size
         
         linear_args.voting_method = linear_voting
         voting_args.voting_method = nonlinear_voting

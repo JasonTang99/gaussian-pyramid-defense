@@ -15,7 +15,7 @@ from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
 from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 from train_denoiser import img_to_numpy
-from utils import create_resnet
+from load_model import load_resnet
 
 # use GPU if available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     denoiser.load_state_dict(torch.load(denoiser_path, map_location=device))
 
     #load classification model
-    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
+    net = load_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
     if args.norm == 'inf':

@@ -9,7 +9,7 @@ from tqdm import tqdm
 import os
 import argparse
 # from torchvision.models import resnet18
-from utils import create_resnet
+from load_model import load_resnet
 
 from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
@@ -248,7 +248,7 @@ if __name__ == '__main__':
 
     # classification model
     # print((args.dataset == 'mnist'))
-    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
+    net = load_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
     print("Generating Adversarial Examples ...")

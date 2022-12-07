@@ -10,7 +10,7 @@ from models.denoisers import DnCNN, REDNet20, REDNet10, DAE
 from custom_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
 from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
-from utils import create_resnet
+from load_model import load_resnet
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     else: model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}.pth"
     
     # classification model
-    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
+    net = load_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
 
