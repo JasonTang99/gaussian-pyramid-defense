@@ -6,7 +6,7 @@ import os
 import argparse
 
 from models.denoisers import DnCNN, REDNet20
-from custom_dataset import AdversarialDataset, get_dataloader
+from adversarial_dataset import AdversarialDataset, get_dataloader
 from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,

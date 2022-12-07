@@ -1,10 +1,7 @@
 import os
 import numpy as np
-import argparse
 import itertools
 import torch
-from torchvision.transforms import InterpolationMode
-import pickle
 
 from parse_args import process_args, post_process_args
 from attack import evaluate_attack, evaluate_cw_l2
@@ -21,16 +18,32 @@ def run(attack_type,
         up_down_pairs,
         interpolations,
         voting_methods,
-        norms,
-        epsilons=[0.1],         # fgsm, pgd only
-        nb_iters=[10],          # pgd only
-        eps_iters=[0.01],       # pgd only
-        rand_inits=[False],     # pgd only
-        initial_consts=[0.1],   # cw only
+        norms=[np.inf],
+        epsilons=[0.1],
+        nb_iters=[10],
+        eps_iters=[0.01],
+        rand_inits=[False],
+        initial_consts=[0.1],
         verbose=True,
-        use_denoiser=True
-    ):
+        use_denoiser=True):
+    """
+    Run FGSM and PGD experiments on GPEnsemble models.
 
+    Tests 2 models (linear and voting) since we use the linear model
+    to generate the adversarial examples for the non-differentiable
+    voting model.
+
+    Iterates over all combinations of the following parameters:
+    - up_samplers, down_samplers from up_down_pairs
+    - interpolations
+    - voting_methods
+    - norms
+    - epsilons          # fgsm, pgd only
+    - nb_iters          # pgd only
+    - eps_iters         # pgd only
+    - rand_inits        # pgd only
+    - initial_consts    # cw only
+    """
     # load existing results
     results = {}
     if use_denoiser:
@@ -46,17 +59,19 @@ def run(attack_type,
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
     
+    # Setup tqdm
     total_experiments = len(up_down_pairs) * len(interpolations) * len(voting_methods) \
         * len(norms) * len(epsilons) * len(nb_iters) * len(eps_iters) \
         * len(rand_inits) * len(initial_consts)
     pbar = tqdm(total=total_experiments)
+    
     # outer loop defining the model
     for (up_samplers, down_samplers), interpolation, voting_method in itertools.product(
             up_down_pairs, interpolations, voting_methods):
         
         # generate model identifiers
-        linear_voting = 'simple_avg' if voting_method == 'simple' else 'weighted_avg'
-        nonlinear_voting = 'majority_vote' if voting_method == 'simple' else 'weighted_vote'
+        diffable_voting = 'simple_avg' if voting_method == 'simple' else 'weighted_avg'
+        nondiffable_voting = 'majority_vote' if voting_method == 'simple' else 'weighted_vote'
         
         linear_model_id = "{}_{}_{}_{}_{}_{}_{}".format(
             attack_type,
@@ -65,7 +80,7 @@ def run(attack_type,
             up_samplers,
             down_samplers,
             interpolation,
-            linear_voting
+            diffable_voting
         )
         voting_model_id = "{}_{}_{}_{}_{}_{}_{}".format(
             attack_type,
@@ -74,20 +89,17 @@ def run(attack_type,
             up_samplers,
             down_samplers,
             interpolation,
-            nonlinear_voting
+            nondiffable_voting
         )
             
         # Generate attack args
         linear_args = process_args(mode="attack")
         voting_args = process_args(mode="attack")
 
-        if attack_type != "cw":
-            if up_samplers >= 2 and scaling_factor == 2:
-                batch_size = 16
-            # if up_samplers + down_samplers >= 3:
-            #     batch_size = 8
-        # if verbose:
-        print("batch_size: ", batch_size)
+        # Decrease batch size if using 2x up-sampling
+        if up_samplers >= 2 and scaling_factor == 2:
+            batch_size = 16
+            print("batch_size: ", batch_size)
         
         for args in [linear_args, voting_args]:
             args.attack_method = attack_type
@@ -98,9 +110,10 @@ def run(attack_type,
             args.down_samplers = down_samplers
             args.interpolation = interpolation
             args.archs = ['resnet18']
+            args.batch_size = batch_size
         
-        linear_args.voting_method = linear_voting
-        voting_args.voting_method = nonlinear_voting
+        linear_args.voting_method = diffable_voting
+        voting_args.voting_method = nondiffable_voting
 
         # Post process args
         linear_args = post_process_args(linear_args, mode="attack")
@@ -173,12 +186,12 @@ def run(attack_type,
             results[linear_attack_id] = (
                 attack_type, dataset, scaling_factor, up_samplers, down_samplers,
                 interpolation, epsilon, nb_iter, eps_iter, rand_init, initial_const,
-                linear_voting, linear_acc.detach().cpu().item(), norm
+                diffable_voting, linear_acc.detach().cpu().item(), norm
             )
             results[voting_attack_id] = (
                 attack_type, dataset, scaling_factor, up_samplers, down_samplers,
                 interpolation, epsilon, nb_iter, eps_iter, rand_init, initial_const,
-                nonlinear_voting, voting_acc.detach().cpu().item(), norm
+                nondiffable_voting, voting_acc.detach().cpu().item(), norm
             )
 
             # Store results
@@ -196,6 +209,9 @@ def run_cw(
         verbose=True,
         use_denoiser=True
     ):
+    """
+    Run CW attack. Similar to run but with different attack processing.
+    """
     attack_type = "cw"
     norms = [2.0]
     interpolations = ['bilinear']
@@ -222,8 +238,8 @@ def run_cw(
             up_down_pairs, interpolations, voting_methods):
         
         # generate model identifiers
-        linear_voting = 'simple_avg' if voting_method == 'simple' else 'weighted_avg'
-        nonlinear_voting = 'majority_vote' if voting_method == 'simple' else 'weighted_vote'
+        diffable_voting = 'simple_avg' if voting_method == 'simple' else 'weighted_avg'
+        nondiffable_voting = 'majority_vote' if voting_method == 'simple' else 'weighted_vote'
         
         linear_model_id = "{}_{}_{}_{}_{}_{}_{}".format(
             attack_type,
@@ -232,7 +248,7 @@ def run_cw(
             up_samplers,
             down_samplers,
             interpolation,
-            linear_voting
+            diffable_voting
         )
         voting_model_id = "{}_{}_{}_{}_{}_{}_{}".format(
             attack_type,
@@ -241,7 +257,7 @@ def run_cw(
             up_samplers,
             down_samplers,
             interpolation,
-            nonlinear_voting
+            nondiffable_voting
         )
             
         # Generate attack args
@@ -259,8 +275,8 @@ def run_cw(
             args.archs = ['resnet18']
             args.batch_size = batch_size
         
-        linear_args.voting_method = linear_voting
-        voting_args.voting_method = nonlinear_voting
+        linear_args.voting_method = diffable_voting
+        voting_args.voting_method = nondiffable_voting
 
         # Post process args
         linear_args = post_process_args(linear_args, mode="attack")
@@ -317,12 +333,12 @@ def run_cw(
                 results[linear_attack_id] = (
                     attack_type, dataset, scaling_factor, up_samplers, down_samplers,
                     interpolation, epsilon, initial_const,
-                    linear_voting, lacc.detach().cpu().item(), norm
+                    diffable_voting, lacc.detach().cpu().item(), norm
                 )
                 results[voting_attack_id] = (
                     attack_type, dataset, scaling_factor, up_samplers, down_samplers,
                     interpolation, epsilon, initial_const,
-                    nonlinear_voting, vacc.detach().cpu().item(), norm
+                    nondiffable_voting, vacc.detach().cpu().item(), norm
                 )
 
             # Store results

@@ -8,14 +8,13 @@ import numpy as np
 from tqdm import tqdm
 import os
 import argparse
-# from torchvision.models import resnet18
 from load_model import load_resnet
 
 from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
+from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,
 )
-from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
 # use GPU if available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

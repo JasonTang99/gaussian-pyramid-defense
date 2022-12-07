@@ -20,8 +20,10 @@ from comparison_defenses.fast_adversarial.preact_resnet import PreActResNet18
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2471, 0.2435, 0.2616)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
-    model.cuda()
+    model.to(device)
 
     if dataset == 'mnist':
         transform = transforms.Compose([
@@ -55,7 +57,7 @@ def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
     correct = 0
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.cuda(), target.cuda()
+            data, target = data.to(device), target.to(device)
             data = t(data)
 
             output = model(data)
@@ -64,7 +66,7 @@ def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
 
     print("Accuracy: {}".format(correct / len(train_data)))
 
-model_test = PreActResNet18().cuda()
+model_test = PreActResNet18().to(device)
 model_test.load_state_dict(torch.load("trained_models/comparison/cifar_model_weights_30_epochs.pth"))
 model_test.float()
 model_test.eval()
@@ -104,12 +106,12 @@ exit(0)
 # sample input
 
 # generate normalized model weights of shape 5
-w = torch.randn(5).cuda()
+w = torch.randn(5).to(device)
 w = F.softmax(w, dim=0)
 print(w, w.sum())
 
 # (5, 16, 10) sample
-x = torch.randn(5, 16, 10).cuda()
+x = torch.randn(5, 16, 10).to(device)
 
 
 
@@ -201,7 +203,7 @@ fp = "cw_results"
 model = load_resnet(device="cuda", num_classes=10, arch="resnet18")
 model.load_state_dict(torch.load("trained_models/mnist/resnet18_2.0-1_BL.pth"))
 model.eval()
-model = model.cuda()
+model = model.to(device)
 
 
 
@@ -259,7 +261,7 @@ val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
 correct = 0
 with torch.no_grad():
     for batch_idx, (data, target) in enumerate(val_loader):
-        data, target = data.cuda(), target.cuda()
+        data, target = data.to(device), target.to(device)
         output = model(data)
         pred = output.argmax(dim=1, keepdim=True)
         correct += pred.eq(target.view_as(pred)).sum().item()
@@ -269,7 +271,7 @@ print("Accuracy: {}".format(correct / len(val_data)))
 # correct = 0
 # with torch.no_grad():
 #     for batch_idx, (data, target) in enumerate(train_loader):
-#         data, target = data.cuda(), target.cuda()
+#         data, target = data.to(device), target.to(device)
 #         output = model(data)
 #         pred = output.argmax(dim=1, keepdim=True)
 #         correct += pred.eq(target.view_as(pred)).sum().item()
@@ -302,8 +304,8 @@ with torch.no_grad():
         # print(images.shape)
         images = transform2(images)
 
-        images = images.cuda()
-        labels = labels.cuda()
+        images = images.to(device)
+        labels = labels.to(device)
 
  
         # images = F.interpolate(images, size=(14, 14), mode='bilinear')

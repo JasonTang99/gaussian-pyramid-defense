@@ -1,7 +1,3 @@
-import torch
-import torch.nn as nn
-from torchvision.models import resnet18, resnet34, resnet50, ResNet18_Weights, ResNet34_Weights, ResNet50_Weights
-
 import os
 import pickle
 
@@ -16,7 +12,6 @@ def read_results(fp):
     return results
 
 # Write results to the "results" file
-# Maps model_path to validation accuracy
 def write_results(fp, results, dictionary=True, overwrite=False):
     # Read and update existing results if they exist
     if os.path.exists(fp) and not overwrite:

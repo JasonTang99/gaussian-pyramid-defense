@@ -7,7 +7,7 @@ import os
 import argparse
 
 from models.denoisers import DnCNN, REDNet20, REDNet10, DAE
-from custom_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
+from adversarial_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
 from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
 from load_model import load_resnet

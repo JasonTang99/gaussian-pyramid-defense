@@ -10,37 +10,52 @@ from parse_args import process_args, post_process_args
 from attack import evaluate_attack, evaluate_cw_l2
 from models.gp_ensemble import GPEnsemble
 from utils import read_results, write_results
-from load_model import load_advens_model
+from load_model import load_advens_model, load_fastadv_model
 
 from tqdm import tqdm
 
-def run(attack_type,
+# use GPU if available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def run(model,
+        model_name,
+        attack_type,
         dataset,
         batch_size,
-        norms,
+        norms=[np.inf],
         epsilons=[0.1],         # fgsm, pgd only
         nb_iters=[10],          # pgd only
         eps_iters=[0.01],       # pgd only
         rand_inits=[False],     # pgd only
     ):
+    """
+    Run FGSM and PGD experiments on input model.
+
+    Iterates over all combinations of the following parameters:
+    - norms
+    - epsilons          # fgsm, pgd only
+    - nb_iters          # pgd only
+    - eps_iters         # pgd only
+    - rand_inits        # pgd only
+    """
 
     # load existing results
     results = {}
-    results_path = "attack_results/advens_results"
+    results_path = "attack_results/{}_{}_{}_results".format(
+        model_name, dataset, attack_type
+    )
     if os.path.exists(results_path):
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
     
-    # defining the model
-    model = load_advens_model()
+    # Eval mode
     model.eval()
-    model.cuda()
+    model.to(device)
 
     # Generate attack args
     args = process_args(mode="attack")
     args.attack_method = attack_type
     args.dataset = dataset
-
     args = post_process_args(args, mode="attack")
 
     # Loop defining the attack parameters
@@ -98,7 +113,7 @@ def run_cw(
     # defining the model
     model = load_advens_model()
     model.eval()
-    model.cuda()
+    model.to(device)
 
     # Generate attack args
     args = process_args(mode="attack")
@@ -145,7 +160,9 @@ def run_cw(
 def experiment_fgsm():
     norm = np.inf
     epsilons = [x/256 for x in [2, 5, 10, 16]]
-
+    advens_model = load_advens_model()
+    fastadv_model = load_fastadv_model()
+    
     attack_results = run(
         attack_type="fgsm",
         dataset="cifar10",
@@ -185,6 +202,8 @@ def experiment_cw():
     )
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
+
     experiment_fgsm()
     experiment_pgd()
     experiment_cw()

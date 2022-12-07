@@ -7,7 +7,13 @@ from torchvision.transforms import InterpolationMode
 
 from utils import *
 
-def load_data(args, scaling_exp=0, train=True):
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
+
+def load_data(args, scaling_exp=0, train=True, normalize=False):
+    """
+    Load dataset and create dataloaders.
+    """
     # setup transform
     if train:
         target_size = calc_resize_shape(
@@ -27,6 +33,8 @@ def load_data(args, scaling_exp=0, train=True):
         transform = transforms.Compose([
             transforms.ToTensor(),
         ])
+    
+
 
     # load dataset
     if args.dataset == 'mnist':
@@ -37,6 +45,12 @@ def load_data(args, scaling_exp=0, train=True):
         ])
         dataset = MNIST(root='data', train=train, download=True, transform=transform)
     elif args.dataset == 'cifar10':
+        # normalize if necessary (FastAdversarial)
+        if normalize:
+            transform = transforms.Compose([
+                *transform.transforms,
+                transforms.Normalize(cifar10_mean, cifar10_std)
+            ])
         dataset = CIFAR10(root='data', train=train, download=True, transform=transform)
     else:
         raise ValueError("Dataset not supported.")
@@ -58,7 +72,5 @@ def load_data(args, scaling_exp=0, train=True):
         # create dataloader
         test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, 
             num_workers=4, pin_memory=True)
-        # test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, 
-        #     num_workers=0, pin_memory=True)
 
         return test_loader
