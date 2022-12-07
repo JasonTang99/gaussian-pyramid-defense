@@ -6,7 +6,7 @@ from tqdm import tqdm
 import os
 import argparse
 
-from models.denoisers import DnCNN, REDNet20, REDNet10, DAE
+from models.denoisers import DnCNN, ConvDAE
 from custom_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
 from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
@@ -96,11 +96,6 @@ def train(args, model, train_loader, val_loader, use_scheduler=False):
         train_loss = 0.0
         for idx, (images, labels) in enumerate(train_loader):
             images, labels = images.to(device), labels.to(device)
-            # if args.adv_mode == 'gaussian':
-            #     noise_level = np.random.uniform(args.noise_level[0], args.noise_level[-1])
-            #     noisy_imgs = add_gaussian_noise(images, noise_level)
-            # else: # attack
-            # noisy_imgs = add_noise(images, args.adv_mode, noise_level)
 
             noisy_imgs = labels      
             optimizer.zero_grad()
@@ -140,17 +135,19 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     np.random.seed(0)
 
+    # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--arch', type=str, default='dncnn', help='Dataset to train on. One of [dncnn, dae].')
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
     parser.add_argument('--adv_mode', type=str, default='gaussian', help='type of adversarial noise')
     parser.add_argument('--norm', type=str, default='inf', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
-    parser.add_argument('--noise_level', type=float, nargs='+', default=[0.05, 0.2], help='noise level range, sigma for gaussian, eps for adversarial')
     parser.add_argument('--epochs', type=int, default=5, help='Number of epochs to train for.')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate.')
-    parser.add_argument('--use_scheduler', action='store_true', help='scheduler')
     parser.add_argument('--add_gaussian', action='store_true', help='')
+    parser.add_argument('--use_scheduler', action='store_true', help='scheduler')
+    parser.add_argument('--use_bias', action='store_true', help='')
+    parser.add_argument('--use_bn', action='store_true', help='')
 
     args = parser.parse_args()
 
@@ -172,19 +169,14 @@ if __name__ == '__main__':
 
     # denoiser model
     if args.arch == 'dncnn':
-        model = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(device)
+        model = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=(args.use_bias)).to(device)
     elif args.arch == 'dae':
-        model = REDNet20(in_channels=3, out_channels=3, num_features=64, use_bias=False).to(device)
-        #model = DAE().to(device)
+        model = ConvDAE(in_channels=3, out_channels=3, num_features=64, use_bias=(args.use_bias)).to(device)
    
-    if args.add_gaussian: model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}+gaussian.pth"
-    else: model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}.pth"
+    # model name to save
+    model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}{'+gaussian' if args.add_gaussian else ''}{'_bias' if args.use_bias else ''}.pth"
     
-    # classification model
-    net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
-    net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
-
-
+    # check if model exists
     if os.path.exists(os.path.join("trained_denoisers", model_name)):
         print("Model already exists. Skip Training.")
         model.load_state_dict(torch.load(os.path.join("trained_denoisers", model_name), map_location=device))
@@ -194,15 +186,15 @@ if __name__ == '__main__':
         print(f"denoiser: {args.arch}")
         print(f"dataset: {args.dataset}")
         print(f"noise type: {args.adv_mode}")
-        #print(f"noise level: {args.noise_level}")
         print(f"learning rate: {args.lr}")
         print(f"batch size: {args.batch_size}")
         print("=======================================================")
-        train(args, model, train_loader, test_loader, use_scheduler=args.use_scheduler)
-        # save model
+        # start training
+        training_loss = train(args, model, train_loader, test_loader, use_scheduler=(args.use_scheduler))
+        # create path if not exist
         if not os.path.isdir('trained_denoisers'): os.mkdir('trained_denoisers')
-
+        # save model
         torch.save(model.state_dict(), os.path.join("trained_denoisers", model_name))
 
-    # eval
+    # evaluate performance
     evaluate_model(model, test_loader, test=True, show=False)

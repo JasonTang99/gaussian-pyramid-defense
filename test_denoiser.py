@@ -1,11 +1,10 @@
 import torch
-import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import os
 import argparse
 
-from models.denoisers import DnCNN, REDNet20
+from models.denoisers import DnCNN, ConvDAE
 from custom_dataset import AdversarialDataset, get_dataloader
 from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
@@ -62,48 +61,6 @@ def generate_attack(images, model, attack, norm, eps):
 
     return x_adv
 
-def show_random_batch(model, denoiser, test_loader, attack, norm, eps, n=5, eval=False):
-    denoiser.eval()
-    images, _ = next(iter(test_loader))
-    # original
-    images = images.to(device)
-    # adversarial
-    x_adv = generate_attack(images, model, attack, norm, eps)
-    # denoised
-    denoised = denoiser(x_adv)
-
-    plt.figure(figsize=(10, 9), dpi=500)
-    for i in range(n):
-        # display original
-        ax = plt.subplot(3, n, i+1)
-        plt.imshow(img_to_numpy(images[i]))
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-        
-        # display noisy
-        ax = plt.subplot(3, n, i+1 + n)
-        img = img_to_numpy(x_adv[i])
-        plt.imshow(img)
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        # display denoised image
-        ax = plt.subplot(3, n, i+1 + n + n)
-        img = img_to_numpy(denoised[i])
-        plt.imshow(img)
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-    plt.figtext(0.5,0.95, "Original Images", ha="center", va="top", fontsize=20, color="b")
-    plt.figtext(0.5,0.65, f"Adversarial Images ({attack})", ha="center", va="top", fontsize=20, color="r")
-    plt.figtext(0.5,0.33, "Denoised Images", ha="center", va="top", fontsize=20, color="g")
-    if eval:
-        avg_psnr_bl, avg_ssim_bl, avg_psnr, avg_ssim, total = evaluate_metrics(model, denoiser, test_loader, attack, norm, eps)
-        plt.figtext(0.5,0.38, "PSNR: {:.3f}dB, SSIM: {:.3f} (averaged over {} images)".format(avg_psnr_bl, avg_ssim_bl, total), ha="center", va="top", fontsize=20)
-        plt.figtext(0.5,0.08, "PSNR: {:.3f}dB, SSIM: {:.3f} (averaged over {} images)".format(avg_psnr, avg_ssim, total), ha="center", va="top", fontsize=20)
-    plt.subplots_adjust(hspace = 0.1)    
-    plt.tight_layout()
-    plt.show()
 
 def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
     denoiser.eval()
@@ -137,6 +94,7 @@ def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
     print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr, avg_ssim))
 
     return avg_psnr_bl, avg_ssim_bl, avg_psnr, avg_ssim, total
+
 
 def test_acc(model, denoisers, test_loader, attack, norm, eps):
     #resnet model
@@ -174,8 +132,6 @@ def test_acc(model, denoisers, test_loader, attack, norm, eps):
                 _, pred_dn = torch.max(denoised_outputs, 1)
                 acc_list[i+2] += (pred_dn == labels).sum().item()
 
-    # if attack == 'cw': show_batch(images, x_adv, denoised, n=10)
-
     # compute the accuracy over all test images
     acc_list = (acc_list / total)
     print("Test Accuracy no attack: {}".format(acc_list[0]))
@@ -210,7 +166,7 @@ if __name__ == '__main__':
     if args.arch == 'dncnn':
         denoiser = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=False).to(device)
     elif args.arch == 'dae':
-        denoiser = REDNet20(in_channels=3, out_channels=3, use_bias=False).to(device)
+        denoiser = ConvDAE(in_channels=3, out_channels=3, use_bias=False).to(device)
 
     # load pretrained denoiser
     denoiser_name = f"{args.arch}_{args.dataset}_{args.denoiser}.pth"
@@ -221,6 +177,7 @@ if __name__ == '__main__':
     net = create_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
+    # convert norm
     if args.norm == 'inf':
         args.norm = np.inf
     elif args.norm == '1' or args.norm == '2':
@@ -236,4 +193,5 @@ if __name__ == '__main__':
     print(f"norm: {args.norm}")
     print("=======================================================")
     denoisers = [denoiser]
+    # test accuracy of model
     test_acc(net, denoisers, test_loader, attack=args.adv_mode, eps=args.eps, norm=args.norm)
