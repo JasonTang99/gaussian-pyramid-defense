@@ -129,7 +129,7 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None, epsilon
         # Check which adversarial examples were successfully found
         with torch.no_grad():
             if denoiser is not None: #add a denoiser
-                images = denoiser(images)
+                adv_images = denoiser(adv_images)
                 
             linear_out = linear_model(adv_images)
             _, linear_preds = torch.max(linear_out, 1)
