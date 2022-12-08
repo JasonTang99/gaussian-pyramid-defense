@@ -9,7 +9,7 @@ ens_adv_train/tensorboard
 custom_data/
 backup/
 denoiser_attack_figures/
-trained_models/cifar10/resnet18_2.0+0_BL_junbo.pth
+trained_models/cifar10/resnet18_2.0+0_BL_*.pth
 run.bat
 *.tar
 

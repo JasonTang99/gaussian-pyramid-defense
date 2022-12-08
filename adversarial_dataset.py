@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST, CIFAR10
@@ -21,6 +20,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class AdversarialDataset(Dataset):
     def __init__(self, args, root='./custom_data', train=True, mixed=True, add_gaussian=False):
+        # mixing different adversarial datasets
         if mixed:
             if train:
                 path0 = os.path.join(root, f"{args.dataset}_train.pt")
@@ -33,19 +33,20 @@ class AdversarialDataset(Dataset):
                 path1 = os.path.join(root, f"{args.dataset}_gaussian_test.pt")
                 path2 = os.path.join(root, f"{args.dataset}_fgsm_norm{args.norm}_test.pt")
                 path3 = os.path.join(root, f"{args.dataset}_pgd_norm{args.norm}_test.pt")
-
+            # load pre-generated dataset from path
             gt = torch.load(path0)
             gaussian_dataset = torch.load(path1)
             fgsm_datset = torch.load(path2)
             pgd_dataset = torch.load(path3)
-            if add_gaussian:
+            if add_gaussian: # add gaussian noise dataset
                 self.clean = torch.cat([gt, gt, gt], dim=0)
                 self.noisy = torch.cat([fgsm_datset, pgd_dataset, gaussian_dataset], dim=0)
                 print("Loaded Datasets:\n{}\n{}\n{}".format(path1, path2, path3))
             else:
                 self.clean = torch.cat([gt, gt], dim=0)
                 self.noisy = torch.cat([fgsm_datset, pgd_dataset], dim=0)
-        else:
+        # using a single dataset
+        else: 
             if train:
                 gt = f"{args.dataset}_train.pt"
                 adv = args.train_file_name
@@ -182,13 +183,8 @@ def generate_adv_examples(args, model):
 
 
 def test_dataset(args, ds):
-    #print(args.train_file_name)
-    #print(args.test_file_name)
     idx = np.random.randint(0, 100)
     print(idx)
-
-    #ds = AdversarialDataset(args, train=True, mixed=(True if args.adv_mode == 'mixed' else False))
-
     clean = img_to_numpy(ds[idx][0])
     noisy = img_to_numpy(ds[idx][1])
     plt.figure()
@@ -205,21 +201,16 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     np.random.seed(0)
 
+    # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset to train on. One of [mnist, cifar10].')
     parser.add_argument('--adv_mode', type=str, default='fgsm', help='type of adversarial noise')
-    parser.add_argument('--peek', action='store_true', help='peek or generate')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--norm', type=str, default='inf', help='Norm to use for attack (if possible to set). One of [inf, 1, 2].')
-
-    # # pgd attack parameters
-    # parser.add_argument('--nb_iter', type=int, default=40, help='Number of steps for PGD attack. Usually 40 or 100.')
-    # parser.add_argument('--eps_iter', type=float, default=0.01, help='Step size for PGD attack.')
-    # parser.add_argument('--rand_init', type=bool, default=False, help='Whether to use random initialization for PGD attack.')
-    # # cw attack parameters
-    # parser.add_argument('--confidence', type=float, default=0, help='Confidence for CW attack.')
-
+    parser.add_argument('--peek', action='store_true', help='peek or generate')
     args = parser.parse_args()
+
+    # epsilon range
     if args.norm == 'inf':
         if args.dataset == 'mnist':
             args.eps_range = [4 / 256, 16 / 256]
@@ -229,12 +220,9 @@ if __name__ == '__main__':
             else:
                 args.eps_range = [4 / 256, 16 / 256]
     elif args.norm == '2':
-        if args.dataset == 'mnist':
-            args.eps_range = [0.1, 0.75]
-        elif args.dataset == 'cifar10':
-            args.eps_range = [0.05, 0.5]
+        args.eps_range = [0.5, 3.5]
 
-
+    # set file names to save/load
     if args.adv_mode == 'none':
         args.train_file_name = f"{args.dataset}_train.pt"
         args.test_file_name = f"{args.dataset}_test.pt"
@@ -245,8 +233,7 @@ if __name__ == '__main__':
         args.train_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_train.pt"
         args.test_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_test.pt"
 
-    # classification model
-    # print((args.dataset == 'mnist'))
+    # resnet classification model (used to generate adversarial examples)
     net = load_resnet(device=device, grayscale=(args.dataset == 'mnist'))
     net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
@@ -256,7 +243,10 @@ if __name__ == '__main__':
     print(f"norm: {args.norm}")
     print(f"eps range: {args.eps_range}")
     print("=======================================================")
-    if not args.peek: generate_adv_examples(args, net)
+    if not args.peek:
+        # generate adversarial examples
+        generate_adv_examples(args, net)
     else: 
+        # verify the dataset
         ds = AdversarialDataset(args, train=False, mixed=(args.adv_mode == 'mixed'))
         test_dataset(args, ds)

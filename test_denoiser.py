@@ -5,7 +5,7 @@ import os
 import argparse
 
 from models.denoisers import DnCNN, ConvDAE
-from adversarial_dataset import AdversarialDataset, get_dataloader
+from adversarial_dataset import get_dataloader
 from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
 from cleverhans_fixed.projected_gradient_descent import (
     projected_gradient_descent,
@@ -20,6 +20,7 @@ from load_model import load_resnet
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def generate_attack(images, model, attack, norm, eps):
+    # perturb the images with various attack methods
     if attack == 'fgsm':
         x_adv = fast_gradient_method(
             model_fn=model,
@@ -51,9 +52,9 @@ def generate_attack(images, model, attack, norm, eps):
             max_iterations=100,
             initial_const=1e-3
         )
+        # keep track of the l2 norm of the perturbed images
         l2_norm = torch.norm((images - x_adv).view(images.shape[0], -1), p=2, dim=1)
         indices = (l2_norm > eps)
-        # print(x_adv[indices].size())
         # ignore images with l2 norm larger than eps
         x_adv[indices] = images[indices]
 
@@ -81,12 +82,15 @@ def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
                 original = img_to_numpy(images[i])
                 adv = img_to_numpy(x_adv[i])
                 denoised = img_to_numpy(output[i])
+                # PSNR and SSIM of adversarial images
                 avg_psnr_bl += PSNR(original, adv)
                 avg_ssim_bl += SSIM(original, adv, multichannel=True)
+                # PSNR and SSIM of denoised images
                 avg_psnr += PSNR(original, denoised)
                 avg_ssim += SSIM(original, denoised, multichannel=True)
 
             total += len(images)
+
     avg_psnr_bl /= total      
     avg_ssim_bl /= total  
     avg_psnr /= total
@@ -122,6 +126,7 @@ def test_acc(model, denoisers, test_loader, attack, norm, eps):
             _, pred = torch.max(outputs, 1)
             _, pred_adv = torch.max(adv_outputs, 1)
 
+            # baseline and adversarial accuracy
             acc_list[0] += (pred == labels).sum().item()
             acc_list[1] += (pred_adv == labels).sum().item()
 
@@ -159,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     args = parser.parse_args()
 
-    # load data
+    # load data for testing
     _, test_loader = get_dataloader(args.dataset, args.batch_size, sample_test=False)
 
     # denoiser model
