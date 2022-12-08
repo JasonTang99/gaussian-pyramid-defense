@@ -6,7 +6,15 @@ We use the library [cleverhans 4.0.0](https://github.com/cleverhans-lab/cleverha
 Code Organization:
 - 
 - attack.py: loads test data and evaluates given models against FGSM, PGD and CW attacks.
-- 
+
+Denoiser:
+- adversarial_dataset.py: loads and generates custom MNIST and CIFAR10 adversarial dataset for training
+- train_denoiser.py: trains the denoiser models with user-specified parameters
+- test_denoiser.py: test denoiser performance by evaluating model accuracy, PSNR, and SSIM of reconstructed images. Also generate FGSM, PGD and CW attacks
+- plot_denoiser_exp.ipynb: plot visualization and results on denoisers
+
+Pretrained denoiser models can be found in /trained_denoisers
+Denoiser architecutures are defined in /models/denoisers.py
 
 
 
