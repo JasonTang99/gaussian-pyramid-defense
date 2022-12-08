@@ -21,7 +21,7 @@ from cleverhans_fixed.projected_gradient_descent import (
 )
 from cleverhans.torch.attacks.carlini_wagner_l2 import carlini_wagner_l2
 
-def evaluate_attack(args, linear_model, voting_model=None, denoiser=None, normalize=False):
+def evaluate_attack(args, linear_model, voting_model=None, denoiser=None):
     """
     Evaluate model on attacked data. Only for baseline, fgsm, pgd attacks.
 
@@ -30,10 +30,9 @@ def evaluate_attack(args, linear_model, voting_model=None, denoiser=None, normal
         linear_model: linear model to evaluate, used to generate adversarial examples
         voting_model: voting model to evaluate
         denoiser: denoiser to apply to adversarial examples prior to the ensemble
-        normalize: whether to normalize the data (for FastAdversarial)
     """
     # load dataset
-    test_loader = load_data(args, 0, train=False, normalize=normalize)
+    test_loader = load_data(args, 0, train=False)
 
     # run evaluation
     linear_model.eval()
@@ -93,7 +92,7 @@ def evaluate_attack(args, linear_model, voting_model=None, denoiser=None, normal
     return linear_acc, voting_acc
 
 def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None, 
-        epsilons=[0.5, 1.0, 2.0, 3.5], normalize=False):
+        epsilons=[0.5, 1.0, 2.0, 3.5]):
     """
     Evaluate model on attacked data for CW attacks. 
     
@@ -106,7 +105,7 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None,
     epsilon limits (epsilons) to evaluate.
     """
     # load dataset
-    test_loader = load_data(args, 0, train=False, normalize=normalize)
+    test_loader = load_data(args, 0, train=False)
 
     # create buckets to track adversarial examples within each epsilon limit
     linear_correct = [0 for _ in range(len(epsilons))]

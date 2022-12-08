@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import transforms
 
+cifar10_mean = (0.4914, 0.4822, 0.4465)
+cifar10_std = (0.2471, 0.2435, 0.2616)
 
 class PreActBlock(nn.Module):
     '''Pre-activation version of the BasicBlock.'''
@@ -68,6 +71,8 @@ class PreActResNet(nn.Module):
         self.bn = nn.BatchNorm2d(512 * block.expansion)
         self.linear = nn.Linear(512 * block.expansion, num_classes)
 
+        self.normalize = transforms.Normalize(mean=cifar10_mean, std=cifar10_std)
+
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
         layers = []
@@ -77,6 +82,7 @@ class PreActResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        x = self.normalize(x)
         out = self.conv1(x)
         out = self.layer1(out)
         out = self.layer2(out)

@@ -8,7 +8,7 @@ from datasets import load_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
+def evaluate_on(model, dataset='mnist', in_size=None):
     """
     Evaluate input model on clean data.
     """
@@ -19,7 +19,7 @@ def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
     args = post_process_args(args, "attack")
 
     # load dataset
-    test_loader = load_data(args, train=False, normalize=normalize)
+    test_loader = load_data(args, train=False)
 
     # evaluate model
     correct = 0
@@ -34,28 +34,34 @@ def evaluate_on(model, dataset='mnist', in_size=None, normalize=False):
 
 if __name__ == "__main__":
     # FastAdversarial test
+    print("========= FastAdversarial =========")
     model = load_fastadv_model()
-    evaluate_on(model, dataset='cifar10', normalize=True)
+    evaluate_on(model, dataset='cifar10')
 
     # Advens test
+    print("========= Advens =========")
     model = load_advens_model()
     evaluate_on(model, dataset='cifar10')
 
     # Single resnet test
+    print("========= Single Resnet =========")
     model = load_resnet(arch="resnet18", pretrained=True, num_classes=10, grayscale=False)
     model.load_state_dict(torch.load("trained_models/cifar10/resnet18_1.1+0_BL.pth"))
     evaluate_on(model, dataset='cifar10')
 
     # GPEnsemble test
-    for vm in "simple_avg weighted_avg majority_vote weighted_vote".split():
+    print("========= GPEnsemble =========")
+    for scaling, up, down in [(1.1, 7, 7), (2.0, 3, 3)]:
         args = process_args("attack")
         args.dataset = "cifar10"
-        args.up_samplers = 2
-        args.down_samplers = 2
-        args.voting_method = vm
+        args.up_samplers = up
+        args.down_samplers = down
+        args.voting_method = "weighted_vote"
+        args.scaling_factor = scaling
         args = post_process_args(args, "attack")
-        model = GPEnsemble(args)
+        print("Scaling: {}".format(scaling))
 
-        print(vm, end=" ")
+        # print(args.scaling_factor)
+        model = GPEnsemble(args)
 
         evaluate_on(model, args.dataset)

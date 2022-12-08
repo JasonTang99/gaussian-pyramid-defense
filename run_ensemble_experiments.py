@@ -382,7 +382,7 @@ def experiment_fgsm():
             norms=[norm],
             epsilons=epsilons,
             verbose=True,
-            denoiser=denoiser
+            use_denoiser=denoiser
         )
 
 def experiment_pgd():
@@ -421,7 +421,7 @@ def experiment_pgd():
             nb_iters=nb_iters,
             rand_inits=rand_inits,
             verbose=False,
-            denoiser=denoiser,
+            use_denoiser=denoiser,
         )
 
 def experiment_cw():
@@ -442,7 +442,7 @@ def experiment_cw():
         print("Running CW attack on {} {} {}".format(dataset, scaling, norm))
         if denoiser:
             print("Using DnCNN denoiser")
-            
+
         attack_results = run_cw(
             dataset=dataset,
             scaling_factor=scaling,
@@ -451,7 +451,7 @@ def experiment_cw():
             voting_methods=voting_methods,
             epsilons=epsilons,
             verbose=False,
-            denoiser=denoiser
+            use_denoiser=denoiser
         )
 
 if __name__ == "__main__":

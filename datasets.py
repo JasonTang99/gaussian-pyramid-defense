@@ -10,7 +10,7 @@ from utils import *
 cifar10_mean = (0.4914, 0.4822, 0.4465)
 cifar10_std = (0.2471, 0.2435, 0.2616)
 
-def load_data(args, scaling_exp=0, train=True, normalize=False):
+def load_data(args, scaling_exp=0, train=True):
     """
     Load dataset and create dataloaders.
 
@@ -36,8 +36,6 @@ def load_data(args, scaling_exp=0, train=True, normalize=False):
         transform = transforms.Compose([
             transforms.ToTensor(),
         ])
-    
-
 
     # load dataset
     if args.dataset == 'mnist':
@@ -48,12 +46,6 @@ def load_data(args, scaling_exp=0, train=True, normalize=False):
         ])
         dataset = MNIST(root='data', train=train, download=True, transform=transform)
     elif args.dataset == 'cifar10':
-        # normalize if necessary (FastAdversarial)
-        if normalize:
-            transform = transforms.Compose([
-                *transform.transforms,
-                transforms.Normalize(cifar10_mean, cifar10_std)
-            ])
         dataset = CIFAR10(root='data', train=train, download=True, transform=transform)
     else:
         raise ValueError("Dataset not supported.")

@@ -44,6 +44,7 @@ def run(model,
     results_path = "attack_results/{}_{}_{}_results".format(
         model_name, dataset, attack_type
     )
+    print(results_path)
     if os.path.exists(results_path):
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
@@ -51,9 +52,6 @@ def run(model,
     # Eval mode
     model.eval()
     model.to(device)
-
-    # Normalize data if using FastAdversarial
-    normalize = model_name == "fastadv"
 
     # Generate attack args
     args = process_args(mode="attack")
@@ -85,7 +83,7 @@ def run(model,
             continue
         
         # Run attack
-        test_acc, _ = evaluate_attack(args, model, normalize=normalize)
+        test_acc, _ = evaluate_attack(args, model)
 
         # Save results
         results[attack_id] = (
@@ -113,7 +111,10 @@ def run_cw(
 
     # load existing results
     results = {}
-    results_path = "attack_results/advens_cw_results"
+    results_path = "attack_results/{}_{}_{}_results".format(
+        model_name, dataset, attack_type
+    )
+    print(results_path)
     if os.path.exists(results_path):
         results = read_results(results_path)
         print(f"Loaded {len(results)} results")
@@ -121,9 +122,6 @@ def run_cw(
     # Eval mode
     model.eval()
     model.to(device)
-
-    # Normalize data if using FastAdversarial
-    normalize = model_name == "fastadv"
 
     # Generate attack args
     args = process_args(mode="attack")
@@ -136,7 +134,6 @@ def run_cw(
     general_attack_id = "advens_{}_{}".format(
         attack_type, dataset
     )
-
     # Inner loop defining the attack parameters
     for norm, initial_const in itertools.product(norms, initial_consts):
 
@@ -152,7 +149,7 @@ def run_cw(
             continue
         
         # Run attack
-        test_acc, _ = evaluate_cw_l2(args, model, epsilons=epsilons, normalize=normalize)
+        test_acc, _ = evaluate_cw_l2(args, model, epsilons=epsilons)
 
         for epsilon, lacc in zip(epsilons, test_acc):
             attack_id = general_attack_id + "_{}_{}_{}".format(
@@ -220,13 +217,14 @@ def experiment_cw():
     fastadv_model = load_fastadv_model()
 
     for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
-        # run PGD attack
+        # run CW attack
         attack_results = run_cw(
             model=model,
             model_name=model_name,
             dataset="cifar10",
             batch_size=64,
             epsilons=epsilons,
+            initial_consts=[1e-8]
         )
 
 if __name__ == "__main__":

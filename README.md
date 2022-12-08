@@ -5,6 +5,8 @@ We use the library [cleverhans 4.0.0](https://github.com/cleverhans-lab/cleverha
 
 Code Organization:
 - 
+- attack.py: loads test data and evaluates given models against FGSM, PGD and CW attacks.
+- 
 
 
 
