@@ -9,8 +9,8 @@ Code Organization:
 
 Denoiser:
 - adversarial_dataset.py: loads and generates custom MNIST and CIFAR10 adversarial dataset for training
-- train_denoiser.py: trains the denoiser models with user-specified parameters
-Sample Usage:
+- train_denoiser.py: trains the denoiser models with user-specified parameters. 
+- Sample Usage:
 ```python
 python train_denoiser.py --dataset=cifar10 --arch=dncnn --lr=1e-3 --batch_size=64 --epochs=5
 ```
