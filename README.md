@@ -21,7 +21,6 @@ We use the library [cleverhans 4.0.0](https://github.com/cleverhans-lab/cleverha
 - ```run_model_training.py```: trains all the prerequisite ensemble members for later use in GPEnsemble.
 - ```requirements.txt```: pip packages needed to run all code.
 
-<<<<<<< HEAD
 Sample Usage:
 ```
 python run_model_training.py
@@ -42,20 +41,3 @@ Sample Usage:
 ```
 python train_denoiser.py --dataset=cifar10 --arch=dncnn --lr=1e-3 --batch_size=64 --epochs=5
 ```
-=======
-Denoiser:
-- adversarial_dataset.py: loads and generates custom MNIST and CIFAR10 adversarial dataset for training.
-- train_denoiser.py: trains the denoiser models with user-specified parameters. 
-- Sample Usage:
-```python
-python train_denoiser.py --dataset=cifar10 --arch=dncnn --lr=1e-3 --batch_size=64 --epochs=5
-```
-- test_denoiser.py: test denoiser performance by evaluating model accuracy, PSNR, and SSIM of reconstructed images. Also generate FGSM, PGD and CW attacks.
-- plot_denoiser_exp.ipynb: plot visualization and results on denoisers.
-- ```trained_denoisers/```: contains all trained denoiser models.
-- ```denoiser_attack_results/```: storage for denoiser experimental results in pkl files.
-
-
->>>>>>> 17837c472b8dafa604c62bc73c37e7d8f2553a09
-
-
