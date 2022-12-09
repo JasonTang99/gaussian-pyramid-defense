@@ -69,7 +69,7 @@ def evaluate_model(model, data_loader, test=False, show=False):
                 original = img_to_numpy(images[i])
                 denoised = img_to_numpy(output[i])
                 avg_psnr += PSNR(original, denoised)
-                avg_ssim += SSIM(original, denoised, multichannel=True)
+                avg_ssim += SSIM(original, denoised, channel_axis=-1)
 
             total += len(images)
     
