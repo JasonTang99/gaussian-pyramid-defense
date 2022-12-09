@@ -126,7 +126,7 @@ def run(attack_type,
         for norm, epsilon, nb_iter, eps_iter, rand_init, initial_const in itertools.product(
                 norms, epsilons, nb_iters, eps_iters, rand_inits, initial_consts):
             pbar.update(1)
-            if eps_iter > epsilon and attack_type == "pgd":
+            if eps_iter > epsilon and epsilon != 0 and attack_type == "pgd":
                 continue
 
             for args in [linear_args, voting_args]:
@@ -347,7 +347,7 @@ def run_cw(
 
 def experiment_fgsm():
     norm = np.inf
-    epsilons = [x/256 for x in [2, 5, 10, 16]]
+    epsilons = [x/256 for x in [0, 2, 5, 10, 16]]
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
 
@@ -390,7 +390,7 @@ def experiment_pgd():
     nb_iters = [40]
     rand_inits = [True]
     norm = np.inf
-    epsilons = [x/256 for x in [2, 5, 10, 16]]
+    epsilons = [x/256 for x in [0, 2, 5, 10, 16]]
     eps_iters = [5e-4]
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
@@ -428,6 +428,9 @@ def experiment_cw():
     # run CW attack (L2)
     norm = 2.0
     epsilons = [0.5, 1.0, 2.0, 3.5]
+    # Zero for baseline
+    # epsilons = [0.0]
+
     interpolations = ["bilinear"]
     voting_methods = ['simple', 'weighted']
     
@@ -437,7 +440,7 @@ def experiment_cw():
         if scaling == 2.0:
             up_down_pairs = [(i, i) for i in [0, 3]]
         else:
-            up_down_pairs = [(i, i) for i in [5, 7]]
+            up_down_pairs = [(i, i) for i in [3, 5, 7]]
 
         print("Running CW attack on {} {} {}".format(dataset, scaling, norm))
         if denoiser:
@@ -446,7 +449,7 @@ def experiment_cw():
         attack_results = run_cw(
             dataset=dataset,
             scaling_factor=scaling,
-            batch_size=32,
+            batch_size=128,
             up_down_pairs=up_down_pairs,
             voting_methods=voting_methods,
             epsilons=epsilons,

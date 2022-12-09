@@ -1,4 +1,4 @@
-from load_model import load_advens_model
+from load_model import load_ensadv_model
 from datasets import load_data
 from parse_args import process_args, post_process_args
 from models.gp_ensemble import GPEnsemble
@@ -93,12 +93,12 @@ if __name__ == "__main__":
     gp_model.eval()
 
     # load model
-    advens_model = load_advens_model()
-    advens_model.eval()
+    ensadv_model = load_ensadv_model()
+    ensadv_model.eval()
 
     # to args.device
     gp_model = gp_model.to(args.device)
-    advens_model = advens_model.to(args.device)
+    ensadv_model = ensadv_model.to(args.device)
 
     # load data
     test_loader = load_data(args, train=False)
@@ -111,8 +111,8 @@ if __name__ == "__main__":
     # get attacks
     gp_imgs, gp_diffs, gp_true_percentages, gp_adv_labels, gp_percentages, gp_l2s, gp_linfs = \
         get_attack(args, gp_model, img, label)
-    advens_imgs, advens_diffs, advens_true_percentages, advens_adv_labels, advens_percentages, advens_l2s, advens_linfs = \
-        get_attack(args, advens_model, img, label)
+    ensadv_imgs, ensadv_diffs, ensadv_true_percentages, ensadv_adv_labels, ensadv_percentages, ensadv_l2s, ensadv_linfs = \
+        get_attack(args, ensadv_model, img, label)
     
     # save img
     # img = gp_imgs[1]
@@ -130,19 +130,19 @@ if __name__ == "__main__":
         if i == 0:
             axs[0, i].set_title(f"{gp_adv_labels[i]} {gp_percentages[i]*100:.2f}%", fontsize=11)
             axs[0, i].imshow(gp_imgs[i][0].transpose(1, 2, 0))
-            axs[1, i].set_title(f"{advens_adv_labels[i]} {advens_true_percentages[i]*100:.2f}%", fontsize=11)
+            axs[1, i].set_title(f"{ensadv_adv_labels[i]} {ensadv_true_percentages[i]*100:.2f}%", fontsize=11)
             axs[1, i].imshow(gp_imgs[i][0].transpose(1, 2, 0))
             continue
 
         axs[0, i].set_title(f"{gp_adv_labels[i]} {gp_percentages[i]*100:.2f}%\n {cifar10_classes[label]} {gp_true_percentages[i]*100:.2f}%\nLinf: {gp_linfs[i]:.3f}\n L2: {gp_l2s[i]:.3f}", fontsize=11)
         axs[0, i].imshow(gp_imgs[i][0].transpose(1, 2, 0))
 
-        axs[1, i].set_title(f"{advens_adv_labels[i]} {advens_percentages[i]*100:.2f}%\n {cifar10_classes[label]} {advens_true_percentages[i]*100:.2f}%\nLinf: {advens_linfs[i]:.3f}\n L2: {advens_l2s[i]:.3f}", fontsize=11)
-        axs[1, i].imshow(advens_imgs[i][0].transpose(1, 2, 0))
+        axs[1, i].set_title(f"{ensadv_adv_labels[i]} {ensadv_percentages[i]*100:.2f}%\n {cifar10_classes[label]} {ensadv_true_percentages[i]*100:.2f}%\nLinf: {ensadv_linfs[i]:.3f}\n L2: {ensadv_l2s[i]:.3f}", fontsize=11)
+        axs[1, i].imshow(ensadv_imgs[i][0].transpose(1, 2, 0))
     
     # for ax in axs.flat:
     #     ax.axis('off')
-    for i, title in enumerate(["GPEnsemble", "AdvEns"]):
+    for i, title in enumerate(["GPEnsemble", "EnsAdv"]):
         axs[i, 0].set_ylabel(title, fontsize=12, rotation=90, labelpad=0)
     # turn off ticks
     for ax in axs.flat:
