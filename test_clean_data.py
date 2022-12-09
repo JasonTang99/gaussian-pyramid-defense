@@ -3,7 +3,7 @@ import numpy as np
 from utils import *
 from models.gp_ensemble import GPEnsemble
 from parse_args import *
-from load_model import load_advens_model, load_resnet, load_fastadv_model
+from load_model import load_ensadv_model, load_resnet, load_fastadv_model
 from datasets import load_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -38,9 +38,9 @@ if __name__ == "__main__":
     model = load_fastadv_model()
     evaluate_on(model, dataset='cifar10')
 
-    # Advens test
-    print("========= Advens =========")
-    model = load_advens_model()
+    # EnsAdv test
+    print("========= EnsAdv =========")
+    model = load_ensadv_model()
     evaluate_on(model, dataset='cifar10')
 
     # Single resnet test

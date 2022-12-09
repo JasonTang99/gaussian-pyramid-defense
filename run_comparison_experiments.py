@@ -10,7 +10,7 @@ from parse_args import process_args, post_process_args
 from attack import evaluate_attack, evaluate_cw_l2
 from models.gp_ensemble import GPEnsemble
 from utils import read_results, write_results
-from load_model import load_advens_model, load_fastadv_model
+from load_model import load_ensadv_model, load_fastadv_model
 
 from tqdm import tqdm
 
@@ -62,7 +62,7 @@ def run(model,
     # Loop defining the attack parameters
     for norm, epsilon, nb_iter, eps_iter, rand_init in itertools.product(
             norms, epsilons, nb_iters, eps_iters, rand_inits):
-        if eps_iter > epsilon and attack_type == "pgd":
+        if eps_iter > epsilon and epsilon != 0 and attack_type == "pgd":
             continue
 
         args.norm = norm
@@ -72,7 +72,7 @@ def run(model,
         args.rand_init = rand_init
 
         # Generate identifier for this attack
-        attack_id = "advens_{}_{}_{}_{}_{}_{}_{}".format(
+        attack_id = "ensadv_{}_{}_{}_{}_{}_{}_{}".format(
             attack_type, dataset, norm, epsilon, nb_iter, eps_iter, rand_init
         )
         print(attack_id)
@@ -131,7 +131,7 @@ def run_cw(
     args = post_process_args(args, mode="attack")
     
     # generate model identifiers
-    general_attack_id = "advens_{}_{}".format(
+    general_attack_id = "ensadv_{}_{}".format(
         attack_type, dataset
     )
     # Inner loop defining the attack parameters
@@ -166,11 +166,11 @@ def run_cw(
 
 def experiment_fgsm():
     norm = np.inf
-    epsilons = [x/256 for x in [2, 5, 10, 16]]
-    advens_model = load_advens_model()
+    epsilons = [x/256 for x in [0, 2, 5, 10, 16]]
+    ensadv_model = load_ensadv_model()
     fastadv_model = load_fastadv_model()
 
-    for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
+    for model, model_name in [(ensadv_model, "ensadv"), (fastadv_model, "fastadv")]:
         # run FGSM attack
         attack_results = run(
             model=model,
@@ -187,13 +187,13 @@ def experiment_pgd():
     nb_iters = [40]
     rand_inits = [True]
     norm = np.inf
-    epsilons = [x/256 for x in [2, 5, 10, 16]]
+    epsilons = [x/256 for x in [0, 2, 5, 10, 16]]
     eps_iters = [5e-4]
     
-    advens_model = load_advens_model()
+    ensadv_model = load_ensadv_model()
     fastadv_model = load_fastadv_model()
 
-    for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
+    for model, model_name in [(ensadv_model, "ensadv"), (fastadv_model, "fastadv")]:
         # run PGD attack
         attack_results = run(
             model=model,
@@ -212,11 +212,13 @@ def experiment_cw():
     # run CW attack (L2)
     norm = 2.0
     epsilons = [0.5, 1.0, 2.0, 3.5]
+    # Zero for baseline
+    # epsilons = [0.0]
 
-    advens_model = load_advens_model()
+    ensadv_model = load_ensadv_model()
     fastadv_model = load_fastadv_model()
 
-    for model, model_name in [(advens_model, "advens"), (fastadv_model, "fastadv")]:
+    for model, model_name in [(ensadv_model, "ensadv"), (fastadv_model, "fastadv")]:
         # run CW attack
         attack_results = run_cw(
             model=model,
@@ -230,8 +232,8 @@ def experiment_cw():
 if __name__ == "__main__":
     torch.manual_seed(0)
 
-    experiment_fgsm()
+    # experiment_fgsm()
     experiment_pgd()
-    experiment_cw()
+    # experiment_cw()
 
 

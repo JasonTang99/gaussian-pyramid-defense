@@ -46,7 +46,7 @@ def evaluate_attack(args, linear_model, voting_model=None, denoiser=None):
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
 
-        if args.attack_method == 'baseline':
+        if args.attack_method == 'baseline' or args.epsilon == 0.0:
             pass
         elif args.attack_method == 'fgsm':
             images = fast_gradient_method(
@@ -122,15 +122,18 @@ def evaluate_cw_l2(args, linear_model, voting_model=None, denoiser=None,
     for images, labels in test_loader:
         images, labels = images.to(args.device), labels.to(args.device)
 
-        adv_images = carlini_wagner_l2(
-            model_fn=linear_model,
-            x=images,
-            n_classes=args.num_classes,
-            lr=5e-3,
-            binary_search_steps=10,
-            max_iterations=150,
-            initial_const=args.initial_const,
-        )
+        if len(epsilons) == 1 and epsilons[0] == 0.0:
+            adv_images = images
+        else:
+            adv_images = carlini_wagner_l2(
+                model_fn=linear_model,
+                x=images,
+                n_classes=args.num_classes,
+                lr=5e-3,
+                binary_search_steps=10,
+                max_iterations=150,
+                initial_const=args.initial_const,
+            )
 
         # Track the maximum L2 and Linf distances
         l2 = torch.norm((images - adv_images).view(images.shape[0], -1), p=2, dim=1)
