@@ -63,41 +63,61 @@ def generate_attack(images, model, attack, norm, eps):
     return x_adv
 
 
-def evaluate_metrics(model, denoiser, test_loader, attack, norm, eps):
-    denoiser.eval()
-    avg_psnr_bl=0
-    avg_ssim_bl=0
-    avg_psnr=0
-    avg_ssim=0
+def evaluate_metrics(model, denoisers, test_loader, attack, norm, eps):
+    #denoiser.eval()
+    for denoiser in denoisers: denoiser.eval()
+    n = len(denoisers)
+    avg_psnr_bl=0.0
+    avg_ssim_bl=0.0
     total=0
+    # avg_psnr=0
+    # avg_ssim=0
+
+    # initialize dict
+    denoiser_metrics = [{'PSNR': 0.0, 'SSIM': 0.0} for _ in range(n)]
     
     for images, _ in tqdm(test_loader):
         images = images.to(device)
         x_adv = generate_attack(images, model, attack, norm, eps)
 
         with torch.no_grad():
-            output = denoiser(x_adv)
+            #output = denoiser(x_adv)
+            denoised = []
+            for i, denoiser in enumerate(denoisers):
+                output = denoiser(x_adv)
+                denoised.append( output )
 
             for i in range(len(images)):
                 original = img_to_numpy(images[i])
                 adv = img_to_numpy(x_adv[i])
-                denoised = img_to_numpy(output[i])
                 # PSNR and SSIM of adversarial images
                 avg_psnr_bl += PSNR(original, adv)
-                avg_ssim_bl += SSIM(original, adv, multichannel=True)
+                avg_ssim_bl += SSIM(original, adv, channel_axis=-1)
                 # PSNR and SSIM of denoised images
-                avg_psnr += PSNR(original, denoised)
-                avg_ssim += SSIM(original, denoised, multichannel=True)
+                # denoised = img_to_numpy(output[i])
+                # avg_psnr += PSNR(original, denoised)
+                # avg_ssim += SSIM(original, denoised, channel_axis=-1)
+                for j in range(n): 
+                    denoised_j = img_to_numpy(denoised[j][i])
+                    denoiser_metrics[j]['PSNR'] += PSNR(original, denoised_j)
+                    denoiser_metrics[j]['SSIM'] += SSIM(original, denoised_j, channel_axis=-1)
 
             total += len(images)
 
     avg_psnr_bl /= total      
     avg_ssim_bl /= total  
-    avg_psnr /= total
-    avg_ssim /= total
-    print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr, avg_ssim))
+    # avg_psnr /= total
+    # avg_ssim /= total
+    print("Baseline: \nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr_bl, avg_ssim_bl))
+    # print("\nAverage PSNR:{:.3f} \nAverage SSIM: {:.3f}".format(avg_psnr, avg_ssim))
 
-    return avg_psnr_bl, avg_ssim_bl, avg_psnr, avg_ssim, total
+    for j in range(n): 
+        denoiser_metrics[j]['PSNR'] /= total
+        denoiser_metrics[j]['SSIM'] /= total
+        print("Denoiser{}: (Average PSNR:{:.3f} , Average SSIM: {:.3f})".format(j + 1, denoiser_metrics[j]['PSNR'], denoiser_metrics[j]['SSIM']))
+    
+    # return avg_psnr_bl, avg_ssim_bl, avg_psnr, avg_ssim, total
+    return total, avg_psnr_bl, avg_ssim_bl, denoiser_metrics
 
 
 def test_acc(model, denoisers, test_loader, attack, norm, eps):

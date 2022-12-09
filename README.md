@@ -4,7 +4,7 @@ Course Project for CSC2529
 We use the library [cleverhans 4.0.0](https://github.com/cleverhans-lab/cleverhans/releases/tag/v4.0.0) for our attack implementations. 
 
 Code Organization:
-- 
+Ensemble:
 - attack.py: loads test data and evaluates given models against FGSM, PGD and CW attacks.
 
 Denoiser:
@@ -17,8 +17,6 @@ python train_denoiser.py --dataset=cifar10 --arch=dncnn --lr=1e-3 --batch_size=6
 - test_denoiser.py: test denoiser performance by evaluating model accuracy, PSNR, and SSIM of reconstructed images. Also generate FGSM, PGD and CW attacks
 - plot_denoiser_exp.ipynb: plot visualization and results on denoisers
 
-Pretrained denoiser models can be found in /trained_denoisers
-Denoiser architecutures are defined in /models/denoisers.py
 
 
 
