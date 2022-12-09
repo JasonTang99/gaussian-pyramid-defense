@@ -7,10 +7,9 @@ import os
 import argparse
 
 from models.denoisers import DnCNN, ConvDAE
-from adversarial_dataset import AdversarialDataset, get_dataloader, img_to_numpy, test_dataset
+from adversarial_dataset import AdversarialDataset, img_to_numpy
 from skimage.metrics import peak_signal_noise_ratio as PSNR
 from skimage.metrics import structural_similarity as SSIM
-from load_model import load_resnet
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -81,6 +80,7 @@ def evaluate_model(model, data_loader, test=False, show=False):
 
 def train(args, model, train_loader, val_loader, use_scheduler=False):
 
+    # MSE loss function 
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     if use_scheduler:
@@ -158,7 +158,7 @@ if __name__ == '__main__':
         args.train_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_train.pt"
         args.test_file_name = f"{args.dataset}_{args.adv_mode}_norm{args.norm}_test.pt"
 
-    # load dataset
+    # load adversarial dataset
     train_data = AdversarialDataset(args, train=True, mixed=(args.adv_mode == 'mixed'), add_gaussian=(args.add_gaussian))
     test_data = AdversarialDataset(args, train=False, mixed=(args.adv_mode == 'mixed'), add_gaussian=(args.add_gaussian))
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
@@ -167,7 +167,7 @@ if __name__ == '__main__':
     print("Train Size: ", len(train_loader.dataset))
     print("Test Size: ", len(test_loader.dataset))
 
-    # denoiser model
+    # denoiser model to train
     if args.arch == 'dncnn':
         model = DnCNN(in_channels=3, out_channels=3, depth=7, hidden_channels=64, use_bias=(args.use_bias)).to(device)
     elif args.arch == 'dae':
@@ -176,13 +176,10 @@ if __name__ == '__main__':
     # model name to save
     model_name = f"{args.arch}_{args.dataset}_{args.adv_mode}{'+gaussian' if args.add_gaussian else ''}{'_bias' if args.use_bias else ''}.pth"
     
-    # classification model
-    net = load_resnet(device=device, grayscale=(args.dataset == 'mnist'))
-    net.load_state_dict(torch.load(os.path.join("trained_models", args.dataset, 'resnet18_2.0+0_BL.pth'), map_location=device))
 
-
+    # check if model exists
     if os.path.exists(os.path.join("trained_denoisers", model_name)):
-        print("Model already exists. Skip Training.")
+        print("Model already exists. Skip Training ...")
         model.load_state_dict(torch.load(os.path.join("trained_denoisers", model_name), map_location=device))
     else:
         print("=================== Start Training ====================")
