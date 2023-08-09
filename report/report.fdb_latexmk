@@ -1,7 +1,7 @@
 # Fdb version 3
-["pdflatex"] 1691450538 "/home/jason/hdd/Archives/University/Courses - Grad/CSC2529/project/report/report.tex" "report.pdf" "report" 1691450540
+["pdflatex"] 1691596210 "/home/jason/hdd/Archives/University/Courses - Grad/CSC2529/project/report/report.tex" "report.pdf" "report" 1691596212
   "/etc/texmf/web2c/texmf.cnf" 1674785563 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/jason/hdd/Archives/University/Courses - Grad/CSC2529/project/report/report.tex" 1691450536 29952 d741669fb3921d44ea334d1e1022249a ""
+  "/home/jason/hdd/Archives/University/Courses - Grad/CSC2529/project/report/report.tex" 1691596210 29967 f415dd374b0da202c2e910df163f3880 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/helvetic/phvb7t.tfm" 1136768653 2240 eb56c13537f4d8a0bd3fafc25572b1bd ""
@@ -122,8 +122,8 @@
   "images/denoiser_sample.png" 1691464884 912933 6988203225bfc180292ecd1ed1723a70 ""
   "images/diagram.png" 1691464884 140864 e87404ed427eb85e13ce20fb8b90c1a9 ""
   "images/voting_methods.png" 1691464884 176745 f190acd6b75d704a309d4f84da99852f ""
-  "report.aux" 1691450540 6651 012148cc7ffebf35d45d55f87881d0e1 "pdflatex"
-  "report.out" 1691450540 1948 40c536fd6a7f343d8b540ea9c45b51f3 "pdflatex"
+  "report.aux" 1691596211 6651 012148cc7ffebf35d45d55f87881d0e1 "pdflatex"
+  "report.out" 1691596211 1948 40c536fd6a7f343d8b540ea9c45b51f3 "pdflatex"
   (generated)
   "report.aux"
   "report.log"
